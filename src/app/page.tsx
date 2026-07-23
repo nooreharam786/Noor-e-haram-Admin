@@ -752,6 +752,23 @@ export default function AdminDashboard() {
     } finally { setSaving(false); }
   }
 
+  async function handleBulkMarkNotSelected(drawId: string) {
+    if (!confirm("Are you sure you want to mark all remaining non-selected applicants in this draw as 'Not Selected'? This will update all remaining entries instantly.")) {
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await api<{ count: number }>(`/admin/draws/${drawId}/bulk-mark-not-selected`, {
+        method: "POST"
+      });
+      toast.success(`Successfully updated ${res.count} applicants to 'Not Selected'!`);
+      await loadDraws();
+      await loadApplicants();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to bulk update status");
+    } finally { setSaving(false); }
+  }
+
   async function handleCreateMarquee() {
     if (!newMarquee.content.trim()) { toast.info("Enter announcement content"); return; }
     setSaving(true);
@@ -806,17 +823,39 @@ export default function AdminDashboard() {
               <div class="brand">NOOR E HARAM CHARITY FOUNDATION</div>
               <div class="tagline">OFFICIAL LUCKY DRAW ENTRY CHIT</div>
             </div>
+            <div class="chit-divider"></div>
             <div class="chit-body">
-              <div class="left-info">
-                <div class="serial">SERIAL: #${serialNo}</div>
-                <div class="reg-no">${regNo}</div>
-                <div class="name">${app.user?.name || "Applicant"}</div>
-                <div class="details">Phone: ${app.phone || "—"} | State: ${app.stateName || "—"}</div>
-                <div class="badge">OFFICIAL VERIFIED ENTRY</div>
+              <div class="center-info">
+                <div>
+                  <div class="reg-no">${regNo}</div>
+                  <div class="name">${app.user?.name || "Applicant"}</div>
+                  <div class="serial">SERIAL: #${serialNo}</div>
+                </div>
+                <div class="details-section">
+                  <div class="details">${app.address ? `Address: ${app.address}` : ""}</div>
+                  <div class="details">Phone: ${app.phone || "—"} | State: ${app.stateName || "—"}</div>
+                  <div class="badge">OFFICIAL VERIFIED ENTRY</div>
+                </div>
               </div>
-              <div class="qr-box">
-                <img src="${qrUrl}" alt="QR" />
-                <div class="qr-label">SCAN TO VERIFY</div>
+              <div class="right-info">
+                <div class="seal-logo">
+                  <svg viewBox="0 0 100 100" width="56" height="56" style="display: block;">
+                    <circle cx="50" cy="50" r="48" fill="none" stroke="#D8A820" stroke-width="2" stroke-dasharray="2,2"/>
+                    <circle cx="50" cy="50" r="44" fill="none" stroke="#D8A820" stroke-width="1"/>
+                    <path id="curve-${index}" fill="transparent" d="M 16,50 A 34,34 0 1,1 84,50 A 34,34 0 1,1 16,50" />
+                    <text fill="#D8A820" font-size="8.5" font-weight="bold" letter-spacing="0.5">
+                      <textPath href="#curve-${index}" startOffset="50%" text-anchor="middle">NOOR E HARAM CHARITY FOUNDATION</textPath>
+                    </text>
+                    <rect x="35" y="30" width="30" height="35" fill="#D8A820" rx="2"/>
+                    <rect x="42" y="25" width="16" height="5" fill="#D8A820" rx="1"/>
+                    <text x="14" y="54" font-size="11" fill="#D8A820">★</text>
+                    <text x="76" y="54" font-size="11" fill="#D8A820">★</text>
+                  </svg>
+                </div>
+                <div class="qr-box">
+                  <img src="${qrUrl}" alt="QR" />
+                  <div class="qr-label">SCAN TO VERIFY</div>
+                </div>
               </div>
             </div>
           </div>
@@ -827,107 +866,162 @@ export default function AdminDashboard() {
         <!DOCTYPE html>
         <html>
         <head>
-          <title>NOOR E HARAM - Physical Lucky Draw Chits (A4 Printable)</title>
+          <title>NOOR E HARAM - Official Lucky Draw Entry Chits (A4 Printable)</title>
           <style>
             @page {
               size: A4 portrait;
-              margin: 10mm;
+              margin: 8mm;
+            }
+            * {
+              box-sizing: border-box;
             }
             body {
-              font-family: Arial, sans-serif;
+              font-family: Arial, Helvetica, sans-serif;
               margin: 0;
               padding: 0;
               background: #fff;
               color: #111;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
             }
             .page-grid {
               display: grid;
               grid-template-columns: 1fr 1fr;
-              grid-auto-rows: 62mm;
+              grid-auto-rows: 64mm;
               gap: 4mm;
               page-break-after: always;
             }
             .chit {
               border: 1.5px dashed #0B4633;
-              border-radius: 6px;
-              padding: 8px 12px;
+              border-radius: 8px;
+              padding: 10px 14px 8px 14px;
               box-sizing: border-box;
               display: flex;
               flex-direction: column;
-              justify-content: space-between;
-              background: #FAF9F4;
+              background: #FFFFFF;
               position: relative;
+              height: 64mm;
+              overflow: hidden;
             }
             .chit-header {
               text-align: center;
-              border-bottom: 1px solid #D8A820;
-              padding-bottom: 4px;
-              margin-bottom: 4px;
+              padding-bottom: 1px;
             }
             .brand {
-              font-size: 11px;
-              font-weight: bold;
+              font-size: 13px;
+              font-weight: 800;
               color: #0B4633;
               letter-spacing: 0.05em;
+              text-transform: uppercase;
+              line-height: 1.1;
             }
             .tagline {
-              font-size: 7.5px;
-              color: #D8A820;
-              font-weight: bold;
+              font-size: 8.5px;
+              color: #B8860B;
+              font-weight: 700;
               text-transform: uppercase;
+              letter-spacing: 0.04em;
+              margin-top: 2px;
+            }
+            .chit-divider {
+              width: 100%;
+              height: 1.5px;
+              background-color: #D8A820;
+              margin: 5px 0 8px 0;
             }
             .chit-body {
               display: flex;
               justify-content: space-between;
-              align-items: center;
-            }
-            .left-info {
               flex: 1;
+              position: relative;
             }
-            .serial {
-              font-size: 9px;
-              font-weight: bold;
-              color: #666;
+            .center-info {
+              flex: 1;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              text-align: center;
+              justify-content: space-between;
+              padding: 0 4px;
             }
             .reg-no {
-              font-family: monospace;
-              font-size: 14px;
-              font-weight: bold;
+              font-family: Arial, Helvetica, sans-serif;
+              font-size: 18px;
+              font-weight: 800;
               color: #0B4633;
-              margin: 2px 0;
+              letter-spacing: 0.02em;
+              line-height: 1.1;
+              margin-top: 1px;
+              text-align: center;
             }
             .name {
-              font-size: 11px;
-              font-weight: bold;
-              color: #222;
+              font-size: 18px;
+              font-weight: 800;
+              color: #111111;
+              line-height: 1.2;
+              margin-top: 3px;
+              text-align: center;
+            }
+            .serial {
+              font-size: 10.5px;
+              font-weight: 700;
+              color: #555555;
+              margin-top: 3px;
+              text-align: center;
+            }
+            .details-section {
+              margin-top: auto;
+              text-align: center;
             }
             .details {
-              font-size: 8px;
-              color: #555;
-              margin-top: 2px;
+              font-size: 9px;
+              color: #555555;
+              line-height: 1.2;
+              text-align: center;
             }
             .badge {
-              display: inline-block;
-              margin-top: 4px;
-              background: #0B4633;
-              color: #fff;
-              font-size: 7px;
-              font-weight: bold;
-              padding: 2px 6px;
-              border-radius: 4px;
+              font-size: 8px;
+              font-weight: 700;
+              color: #888888;
+              letter-spacing: 0.05em;
+              margin-top: 2px;
+              text-transform: uppercase;
+              text-align: center;
+            }
+            .right-info {
+              display: flex;
+              flex-direction: column;
+              justify-content: space-between;
+              align-items: flex-end;
+              width: 65px;
+            }
+            .seal-logo {
+              width: 56px;
+              height: 56px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
             }
             .qr-box {
               width: 55px;
               text-align: center;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
             }
             .qr-box img {
               width: 48px;
               height: 48px;
+              display: block;
             }
             .qr-label {
-              font-size: 6px;
-              color: #666;
-              font-weight: bold;
+              font-size: 7px;
+              color: #555555;
+              font-weight: 700;
+              letter-spacing: 0.04em;
+              margin-top: 2px;
+              text-transform: uppercase;
+              white-space: nowrap;
             }
           </style>
         </head>
@@ -1499,12 +1593,6 @@ export default function AdminDashboard() {
                     <select className="input" value={appQuery.status} onChange={(event) => setAppQuery((query) => ({ ...query, page: 1, status: event.target.value as ApplicationStatus | "" }))}>
                       <option value="">All status</option>
                       <option value="pending">Pending</option>
-                      <option value="verified">Verified</option>
-                      <option value="approved">Approved</option>
-                      <option value="rejected">Rejected</option>
-                      <option value="winner">Winner</option>
-                      <option value="waiting_list">Waiting List</option>
-                      <option value="cancelled">Cancelled</option>
                       <option value="selected">Selected</option>
                       <option value="not_selected">Not selected</option>
                     </select>
@@ -1610,13 +1698,7 @@ export default function AdminDashboard() {
                             value={item.status}
                             onChange={(e) => handleUpdateApplicantStatus(item.id, e.target.value as ApplicationStatus)}
                           >
-                            <option value="pending">Pending</option>
-                            <option value="verified">Verified</option>
-                            <option value="approved">Approved</option>
-                            <option value="rejected">Rejected</option>
-                            <option value="winner">Winner 🏆</option>
-                            <option value="waiting_list">Waiting List</option>
-                            <option value="cancelled">Cancelled</option>
+                            {item.status === "pending" && <option value="pending">Pending</option>}
                             <option value="selected">Selected</option>
                             <option value="not_selected">Not selected</option>
                           </select>
@@ -1691,7 +1773,7 @@ export default function AdminDashboard() {
                             <div>Total Apps: <strong>{draw.totalApplications}</strong></div>
                             <div>Paid Apps: <strong>{draw.paidApplications}</strong></div>
                             <div>Verified: <strong>{draw.verifiedApplications}</strong></div>
-                            <div>Winners: <strong className="text-gold font-bold">{draw.winnerApplications}</strong></div>
+                            <div>Selected Persons: <strong className="text-gold font-bold">{draw.winnerApplications}</strong></div>
                           </div>
 
                           <div className="flex flex-wrap gap-2 pt-2">
@@ -1713,6 +1795,14 @@ export default function AdminDashboard() {
                                 Close Draw
                               </button>
                             )}
+                            <button
+                              className="btn-secondary h-8 text-xs px-3 text-red-600 hover:bg-red-50"
+                              onClick={() => handleBulkMarkNotSelected(draw.id)}
+                              disabled={saving}
+                              title="Bulk update all non-selected applicants to 'Not Selected'"
+                            >
+                              Mark Rest 'Not Selected'
+                            </button>
                             {draw.status !== "archived" && (
                               <button
                                 className="btn-secondary h-8 text-xs px-3 text-stone-500"
@@ -1814,11 +1904,11 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                {/* Section 3: Winner Declaration Panel */}
+                {/* Section 3: Selection Declaration & Bulk Status Panel */}
                 <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-card sm:p-6 space-y-4">
                   <div>
-                    <h3 className="text-xl font-semibold text-emerald-deep">Offline Winner Declaration</h3>
-                    <p className="mt-1 text-sm text-stone-500">After running physical draw box selection, update winners and waiting list. The public website will update automatically.</p>
+                    <h3 className="text-xl font-semibold text-emerald-deep">Selected Persons Declaration & Bulk Status Update</h3>
+                    <p className="mt-1 text-sm text-stone-500">Perform random selection for lucky applicants, or bulk update all remaining non-selected applicants (up to 10,000 entries) to 'Not Selected'.</p>
                   </div>
 
                   <div className="grid gap-4 md:grid-cols-2">
@@ -1832,10 +1922,22 @@ export default function AdminDashboard() {
                     </button>
                   </div>
 
-                  <div className="flex gap-3">
+                  <div className="flex flex-wrap gap-3">
                     <button className="btn-primary" onClick={() => setConfirmDraw(true)}>
                       <Sparkles className="h-4 w-4" />
-                      Execute Random Draw Engine
+                      Execute Random Selection Engine
+                    </button>
+
+                    <button
+                      className="btn-secondary text-red-700 border-red-200 hover:bg-red-50"
+                      onClick={() => {
+                        const active = drawsList.find((d) => d.status === "active");
+                        if (active) handleBulkMarkNotSelected(active.id);
+                        else toast.info("No active draw selected");
+                      }}
+                      disabled={saving}
+                    >
+                      Mark All Remaining Applicants as 'Not Selected'
                     </button>
                   </div>
                 </div>
