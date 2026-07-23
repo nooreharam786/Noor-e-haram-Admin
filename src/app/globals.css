@@ -1,0 +1,60 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #f7f3ea;
+  --foreground: #2e2923;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at top left, rgba(200, 169, 81, 0.12), transparent 28rem),
+    linear-gradient(180deg, #fbfaf6 0%, var(--background) 100%);
+  color: var(--foreground);
+  font-family: "Inter", system-ui, sans-serif;
+}
+
+h1,
+h2,
+h3 {
+  font-family: "Playfair Display", Georgia, serif;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+.gold-ring {
+  box-shadow: inset 0 0 0 1px rgba(200, 169, 81, 0.36);
+}
+
+.input {
+  @apply h-11 rounded-lg border border-stone-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-deep focus:ring-4 focus:ring-emerald-deep/10;
+}
+
+.btn-primary {
+  @apply inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-emerald-deep px-4 text-sm font-semibold text-white shadow-emerald transition hover:bg-emerald-light disabled:cursor-not-allowed disabled:opacity-60;
+}
+
+.btn-secondary {
+  @apply inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-gold/40 bg-white px-4 text-sm font-semibold text-emerald-deep shadow-sm transition hover:bg-gold-soft disabled:cursor-not-allowed disabled:opacity-60;
+}
+
+.admin-mobile-card {
+  @apply relative overflow-hidden rounded-xl border border-stone-200 bg-white p-4 shadow-card;
+}
+
+.admin-mobile-card::before {
+  content: "";
+  @apply absolute inset-x-0 top-0 h-1 bg-gold;
+}
