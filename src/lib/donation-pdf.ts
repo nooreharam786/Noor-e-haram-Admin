@@ -99,7 +99,11 @@ export async function downloadDonationReceipt(donation: DonationReceiptData) {
       pdfImportantInfo()
     )}
 
-    ${pdfSealsRow()}
+    ${pdfSealsRow(
+      undefined,
+      "/signature.png",
+      "Afzal Shaikh"
+    )}
     ${pdfFooter()}
   `;
 

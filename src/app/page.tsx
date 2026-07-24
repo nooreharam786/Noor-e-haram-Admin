@@ -361,7 +361,7 @@ export default function AdminDashboard() {
 
   const [payments, setPayments] = useState<Paginated<Applicant> | null>(null);
   const [donations, setDonations] = useState<Paginated<Donation> | null>(null);
-  const [paymentQuery, setPaymentQuery] = useState({ page: 1, search: "", status: "" as PaymentStatus | "", dateFilter: "" });
+  const [paymentQuery, setPaymentQuery] = useState({ page: 1, search: "", status: "" as PaymentStatus | "", drawId: "", dateFilter: "" });
   const [donationQuery, setDonationQuery] = useState({ page: 1, search: "", status: "", dateFilter: "" });
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("General");
   const [markingPaid, setMarkingPaid] = useState<string | null>(null);
@@ -375,6 +375,7 @@ export default function AdminDashboard() {
     search: "",
     status: "" as ApplicationStatus | "",
     paymentStatus: "" as PaymentStatus | "",
+    drawId: "",
     sortBy: "createdAt",
     sortOrder: "desc" as SortOrder
   });
@@ -387,8 +388,10 @@ export default function AdminDashboard() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const [drawsList, setDrawsList] = useState<DrawItem[]>([]);
+  const [drawBackups, setDrawBackups] = useState<any[]>([]);
   const [marqueeList, setMarqueeList] = useState<MarqueeItem[]>([]);
   const [selectedDrawId, setSelectedDrawId] = useState<string>("");
+  const [selectedPrintDrawId, setSelectedPrintDrawId] = useState<string>("");
   const [newDrawName, setNewDrawName] = useState<string>("");
   const [bannerMessageInput, setBannerMessageInput] = useState<string>("");
   const [newMarquee, setNewMarquee] = useState({ content: "", linkUrl: "", eventDate: "", lastDate: "", statusBadge: "Applications Open", priority: 0 });
@@ -447,6 +450,11 @@ export default function AdminDashboard() {
 
   const [contactMessages, setContactMessages] = useState<ContactMessageItem[]>([]);
   const [cmsStats, setCmsStats] = useState<any>(null);
+
+  async function loadDrawHistory() {
+    const history = await api<DrawResult[]>("/admin/draw/history");
+    setDrawHistory(history);
+  }
 
   async function loadDashboard() {
     const [nextStats, history, cmsData] = await Promise.all([
@@ -652,12 +660,58 @@ export default function AdminDashboard() {
   }
 
   async function loadDraws() {
-    const res = await api<DrawItem[]>("/admin/draws");
-    setDrawsList(res);
-    if (res.length > 0 && !selectedDrawId) {
-      const active = res.find((d) => d.status === "active") || res[0];
-      setSelectedDrawId(active.id);
-      setBannerMessageInput(active.bannerMessage || "");
+    try {
+      const res = await api<DrawItem[]>("/admin/draws");
+      setDrawsList(res);
+      if (res.length > 0) {
+        const active = res.find((d) => d.status === "active") || res[0];
+        if (!selectedDrawId) setSelectedDrawId(active.id);
+        if (!selectedPrintDrawId) setSelectedPrintDrawId(active.id);
+        setBannerMessageInput(active.bannerMessage || "");
+      }
+    } catch (err) {
+      console.error("Failed to load draws:", err);
+    }
+    loadDrawBackups();
+  }
+
+  async function loadDrawBackups() {
+    try {
+      const res = await api<any[]>("/admin/draws/backups");
+      setDrawBackups(res || []);
+    } catch (err) {
+      console.error("Failed to load draw backups:", err);
+    }
+  }
+
+  async function handleTriggerDrawBackup(drawId: string) {
+    setSaving(true);
+    try {
+      await api(`/admin/draws/${drawId}/backup`, { method: "POST" });
+      toast.success("Draw snapshot backup created!");
+      await loadDrawBackups();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to backup draw");
+    } finally { setSaving(false); }
+  }
+
+  async function handleDownloadBackup(backupId: string, drawName: string) {
+    try {
+      const res = await api<any>(`/admin/draws/backups/${backupId}`);
+      if (res?.data?.snapshotData) {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(res.data.snapshotData, null, 2));
+        const downloadAnchor = document.createElement("a");
+        downloadAnchor.setAttribute("href", dataStr);
+        downloadAnchor.setAttribute("download", `draw-backup-${drawName.replace(/\s+/g, "_")}-${backupId}.json`);
+        document.body.appendChild(downloadAnchor);
+        downloadAnchor.click();
+        downloadAnchor.remove();
+        toast.success("Backup downloaded successfully!");
+      } else {
+        toast.error("Snapshot data unavailable");
+      }
+    } catch (err) {
+      toast.error("Failed to download backup JSON");
     }
   }
 
@@ -745,8 +799,7 @@ export default function AdminDashboard() {
       toast.success("Winners declared! Website updated automatically.");
       setSelectedWinners([]);
       setSelectedWaitingList([]);
-      await loadDraws();
-      await loadApplicants();
+      await Promise.all([loadDraws(), loadApplicants(), loadDrawHistory(), loadDashboard()]);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to declare winners");
     } finally { setSaving(false); }
@@ -795,14 +848,30 @@ export default function AdminDashboard() {
     }
   }
 
-  async function printA4LuckyDrawChits() {
+  async function printA4LuckyDrawChits(overrideDrawId?: string) {
     try {
-      toast.info("Preparing A4 physical lucky draw chits...");
-      const res = await api<{ items: Applicant[] }>("/admin/print/applicants?all=true");
+      // Strict draw selection: always require an explicit draw selection
+      const targetDrawId = overrideDrawId || selectedPrintDrawId;
+      
+      if (!targetDrawId) {
+        toast.error("Please select a draw from the dropdown before printing chits. Printing across all draws is not allowed.");
+        return;
+      }
+
+      const selectedDraw = drawsList.find((d) => d.id === targetDrawId);
+      if (!selectedDraw) {
+        toast.error("Selected draw not found. Please refresh and try again.");
+        return;
+      }
+
+      toast.info(`Preparing A4 physical lucky draw chits for "${selectedDraw.name}"...`);
+
+      // Always send drawId — backend will reject requests without it
+      const res = await api<{ items: Applicant[] }>(`/admin/print/applicants?all=true&drawId=${targetDrawId}`);
       const applicantsList = res.items;
 
       if (!applicantsList || applicantsList.length === 0) {
-        toast.error("No applicants found to print chits.");
+        toast.error(`"${selectedDraw.name}" has 0 registered applicants. No chits available to print.`);
         return;
       }
 
@@ -816,6 +885,7 @@ export default function AdminDashboard() {
         const serialNo = String(index + 1).padStart(3, "0");
         const regNo = app.registrationNo || `NHCF${String(index + 1).padStart(6, "0")}`;
         const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://nooreharam.in/verify/${app.id}`;
+        const fullAddress = [app.address, app.city, app.stateName].filter((part) => part && part.trim() !== "").join(", ");
         
         return `
           <div class="chit">
@@ -832,8 +902,8 @@ export default function AdminDashboard() {
                   <div class="serial">SERIAL: #${serialNo}</div>
                 </div>
                 <div class="details-section">
-                  <div class="details">${app.address ? `Address: ${app.address}` : ""}</div>
-                  <div class="details">Phone: ${app.phone || "—"} | State: ${app.stateName || "—"}</div>
+                  <div class="details">Address: ${fullAddress || "Address Not Specified"}</div>
+                  <div class="details">Phone: ${app.phone || "—"} | Draw: ${(app as any).draw?.name || selectedDraw?.name || "Lucky Draw"}</div>
                   <div class="badge">OFFICIAL VERIFIED ENTRY</div>
                 </div>
               </div>
@@ -1124,18 +1194,8 @@ export default function AdminDashboard() {
     setLoading(true);
     Promise.all([
       loadDashboard(),
-      loadUsers(),
-      loadApplicants(),
-      loadSettings(),
-      loadFeedback(),
-      loadDocuments(),
       loadDraws(),
-      loadMarquees(),
-      loadFeedbackCMS(),
-      loadAnnouncementsCMS(),
-      loadDuaGuidelinesCMS(),
-      loadGalleryCMS(),
-      loadContactSettingsCMS()
+      loadSettings()
     ])
       .catch((error) => {
         toast.error(error instanceof Error ? error.message : "Unable to load dashboard");
@@ -1144,20 +1204,49 @@ export default function AdminDashboard() {
       .finally(() => setLoading(false));
   }, [router]);
 
+  // Tab-based Lazy Data Fetching (Only load data when user opens specific tab)
   useEffect(() => {
-    if (getToken()) loadUsers().catch((error) => toast.error(error.message));
+    if (!getToken()) return;
+
+    if (activeTab === "Dashboard") {
+      loadDashboard().catch((error) => toast.error(error.message));
+    } else if (activeTab === "Users") {
+      loadUsers().catch((error) => toast.error(error.message));
+    } else if (activeTab === "Lucky Draw Applicants" || activeTab === "Draw Control") {
+      loadApplicants().catch((error) => toast.error(error.message));
+    } else if (activeTab === "Payments") {
+      loadPayments().catch((error) => toast.error(error.message));
+    } else if (activeTab === "Donations") {
+      loadDonations().catch((error) => toast.error(error.message));
+    } else if (activeTab === "Announcements") {
+      loadAnnouncementsCMS().catch((error) => toast.error(error.message));
+    } else if (activeTab === "Dua Guidelines") {
+      loadDuaGuidelinesCMS().catch((error) => toast.error(error.message));
+    } else if (activeTab === "Gallery CMS") {
+      loadGalleryCMS().catch((error) => toast.error(error.message));
+    } else if (activeTab === "Feedback CMS") {
+      loadFeedbackCMS().catch((error) => toast.error(error.message));
+    } else if (activeTab === "Contact & Settings") {
+      loadContactSettingsCMS().catch((error) => toast.error(error.message));
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (getToken() && activeTab === "Users") loadUsers().catch((error) => toast.error(error.message));
   }, [usersQuery]);
 
   useEffect(() => {
-    if (getToken()) loadApplicants().catch((error) => toast.error(error.message));
+    if (getToken() && (activeTab === "Lucky Draw Applicants" || activeTab === "Draw Control")) {
+      loadApplicants().catch((error) => toast.error(error.message));
+    }
   }, [appQuery]);
 
   useEffect(() => {
-    if (getToken()) loadPayments().catch((error) => toast.error(error.message));
+    if (getToken() && activeTab === "Payments") loadPayments().catch((error) => toast.error(error.message));
   }, [paymentQuery]);
 
   useEffect(() => {
-    if (getToken()) loadDonations().catch((error) => toast.error(error.message));
+    if (getToken() && activeTab === "Donations") loadDonations().catch((error) => toast.error(error.message));
   }, [donationQuery]);
 
   const statCards = useMemo(
@@ -1184,7 +1273,7 @@ export default function AdminDashboard() {
       });
       toast.success(`Lucky draw complete: ${result.selectedCount} selected`);
       setConfirmDraw(false);
-      await Promise.all([loadDashboard(), loadApplicants()]);
+      await Promise.all([loadDashboard(), loadDrawHistory(), loadApplicants()]);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Draw failed");
     } finally {
@@ -1509,15 +1598,52 @@ export default function AdminDashboard() {
                   ))}
                 </div>
                 <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-card sm:p-6">
-                  <h3 className="text-xl font-semibold text-emerald-deep">Last Draw Result</h3>
-                  {stats?.lastDraw ? (
-                    <div className="mt-4 grid gap-4 md:grid-cols-3">
-                      <p className="rounded-lg bg-cream p-4 text-sm">Paid seats: <strong>{stats.lastDraw.totalUsers}</strong></p>
-                      <p className="rounded-lg bg-cream p-4 text-sm">Selected seats: <strong>{stats.lastDraw.selectedCount}</strong></p>
-                      <p className="rounded-lg bg-cream p-4 text-sm">Run at: <strong>{formatDate(stats.lastDraw.createdAt)}</strong></p>
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-xl font-semibold text-emerald-deep">Lucky Draw Results History</h3>
+                      <p className="text-xs text-stone-500 mt-1">All draw runs sorted by latest first. Auto-refreshes when new draws are run.</p>
                     </div>
+                    <button
+                      className="btn-secondary h-8 text-xs px-3 flex items-center gap-1.5"
+                      onClick={() => loadDrawHistory().catch((e) => toast.error(e.message))}
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                      Refresh
+                    </button>
+                  </div>
+                  {drawHistory.length === 0 ? (
+                    <p className="text-sm text-stone-500">No lucky draw has been run yet.</p>
                   ) : (
-                    <p className="mt-4 text-sm text-stone-500">No lucky draw has been run yet.</p>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-sm">
+                        <thead className="bg-cream text-xs font-semibold text-stone-500">
+                          <tr>
+                            <th className="px-4 py-3">#</th>
+                            <th className="px-4 py-3">Draw Name</th>
+                            <th className="px-4 py-3">Paid Entries</th>
+                            <th className="px-4 py-3">Selected</th>
+                            <th className="px-4 py-3">Run At</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-stone-100 text-stone-700">
+                          {drawHistory.map((result, idx) => (
+                            <tr key={result.id} className={`hover:bg-stone-50 ${idx === 0 ? "bg-gold-soft" : ""}`}>
+                              <td className="px-4 py-3 font-mono text-xs text-stone-400">#{drawHistory.length - idx}</td>
+                              <td className="px-4 py-3 font-semibold text-emerald-deep">
+                                {result.draw?.name || "Lucky Draw"}
+                                {idx === 0 && <span className="ml-2 rounded bg-gold text-emerald-deep text-[10px] font-bold px-1.5 py-0.5">LATEST</span>}
+                              </td>
+                              <td className="px-4 py-3 font-bold">{result.totalUsers}</td>
+                              <td className="px-4 py-3">
+                                <span className="font-bold text-gold">{result.selectedCount}</span>
+                                <span className="text-xs text-stone-400 ml-1">selected</span>
+                              </td>
+                              <td className="px-4 py-3 text-xs text-stone-500">{formatDate(result.createdAt)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   )}
                 </div>
               </motion.section>
@@ -1588,8 +1714,14 @@ export default function AdminDashboard() {
               <TableShell
                 title="Lucky Draw Applicants"
                 action={
-                  <div className="grid w-full gap-2 sm:grid-cols-[minmax(220px,1fr)_150px_150px_auto] lg:w-auto">
+                  <div className="grid w-full gap-2 sm:grid-cols-[minmax(200px,1fr)_160px_140px_140px_auto] lg:w-auto">
                     <SearchBox value={appQuery.search} onChange={(search) => setAppQuery((query) => ({ ...query, page: 1, search }))} />
+                    <select className="input font-semibold text-emerald-deep" value={appQuery.drawId} onChange={(event) => setAppQuery((query) => ({ ...query, page: 1, drawId: event.target.value }))}>
+                      <option value="">-- All Draws --</option>
+                      {drawsList.map((d) => (
+                        <option key={d.id} value={d.id}>Draw #{d.drawIndex}: {d.name}</option>
+                      ))}
+                    </select>
                     <select className="input" value={appQuery.status} onChange={(event) => setAppQuery((query) => ({ ...query, page: 1, status: event.target.value as ApplicationStatus | "" }))}>
                       <option value="">All status</option>
                       <option value="pending">Pending</option>
@@ -1626,6 +1758,7 @@ export default function AdminDashboard() {
                             <Badge value={item.paymentStatus} />
                           </div>
                         </div>
+                        <DetailRow label="Draw" value={<span className="rounded bg-gold-soft px-2.5 py-0.5 text-xs font-bold text-emerald-deep">{(item as any).draw?.name || "Draw"}</span>} />
                         <DetailRow label="Phone" value={item.phone} />
                         <DetailRow label="State" value={item.stateName} />
                         <DetailRow label="Address" value={item.address || "—"} />
@@ -1656,9 +1789,10 @@ export default function AdminDashboard() {
                     ))
                   )}
                 </div>
-                <table className="hidden w-full min-w-[1260px] text-left text-sm md:table">
+                <table className="hidden w-full min-w-[1360px] text-left text-sm md:table">
                   <thead className="bg-cream text-xs font-semibold text-stone-500">
                     <tr>
+                      <th className="px-4 py-3">Draw</th>
                       <th className="px-4 py-3">Reg No</th>
                       <th className="px-4 py-3">Name</th>
                       <th className="px-4 py-3">Email</th>
@@ -1675,8 +1809,13 @@ export default function AdminDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {!applicants ? <SkeletonRows cols={12} /> : applicants.items.map((item) => (
+                    {!applicants ? <SkeletonRows cols={13} /> : applicants.items.map((item) => (
                       <tr key={item.id} className="border-t border-stone-100">
+                        <td className="px-4 py-4">
+                          <span className="rounded bg-gold-soft px-2.5 py-1 text-xs font-bold text-emerald-deep whitespace-nowrap">
+                            {(item as any).draw?.name || "Draw"}
+                          </span>
+                        </td>
                         <td className="px-4 py-4 font-mono text-sm font-semibold text-emerald-deep">{item.registrationNo}</td>
                         <td className="px-4 py-4 font-semibold text-stone-800">{item.user.name}</td>
                         <td className="px-4 py-4 text-stone-600">{item.user.email}</td>
@@ -1803,6 +1942,14 @@ export default function AdminDashboard() {
                             >
                               Mark Rest 'Not Selected'
                             </button>
+                            <button
+                              className="btn-secondary h-8 text-xs px-3 text-blue-700 hover:bg-blue-50"
+                              onClick={() => handleTriggerDrawBackup(draw.id)}
+                              disabled={saving}
+                              title="Create full snapshot backup of this draw"
+                            >
+                              Backup Draw
+                            </button>
                             {draw.status !== "archived" && (
                               <button
                                 className="btn-secondary h-8 text-xs px-3 text-stone-500"
@@ -1817,6 +1964,49 @@ export default function AdminDashboard() {
                       ))
                     )}
                   </div>
+                </div>
+
+                {/* Section 1B: Draw Data Backups & Historical Snapshots */}
+                <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-card sm:p-6 space-y-4">
+                  <div className="flex items-center justify-between border-b border-stone-200 pb-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-emerald-deep">Historical Draw Backups</h3>
+                      <p className="text-xs text-stone-500">Immutable JSON snapshots created on draw closure or manual backup requests for future audit.</p>
+                    </div>
+                    <button className="btn-secondary h-8 text-xs px-3" onClick={loadDrawBackups}>
+                      Refresh Backups
+                    </button>
+                  </div>
+
+                  {drawBackups.length === 0 ? (
+                    <p className="text-xs text-stone-500 py-4">No draw backups created yet. Click 'Backup Draw' or close a draw to create one.</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <tbody className="divide-y divide-stone-200 text-stone-600">
+                          {drawBackups.map((b) => (
+                            <tr key={b.id} className="hover:bg-stone-50">
+                              <td className="p-2.5 font-medium text-emerald-deep">{b.drawName}</td>
+                              <td className="p-2.5 font-mono">#{b.drawIndex}</td>
+                              <td className="p-2.5 font-bold">{b.totalApplications} Apps</td>
+                              <td className="p-2.5 text-emerald-600 font-bold">{b.paidApplications} Paid</td>
+                              <td className="p-2.5 text-gold font-bold">{b.winnerApplications} Selected</td>
+                              <td className="p-2.5"><span className="rounded bg-stone-200 px-1.5 py-0.5 text-[10px] font-mono text-stone-700">{b.backupReason}</span></td>
+                              <td className="p-2.5">{new Date(b.createdAt).toLocaleString("en-IN")}</td>
+                              <td className="p-2.5 text-right">
+                                <button
+                                  className="btn-secondary h-7 text-[11px] px-2.5 text-blue-700"
+                                  onClick={() => handleDownloadBackup(b.id, b.drawName)}
+                                >
+                                  Download JSON
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
 
                 {/* Section 2: Application Window Control & Print Chits */}
@@ -1889,17 +2079,50 @@ export default function AdminDashboard() {
                       <p className="mt-1 text-xs text-stone-500">Generate A4-optimized chits with dashed cut marks, QR codes, and registration numbers for physical draw box selection.</p>
                     </div>
 
-                    <div className="p-4 bg-cream border border-gold/40 rounded-lg space-y-3">
-                      <div className="flex items-center gap-2 text-xs font-semibold text-stone-700">
-                        <Printer className="h-4 w-4 text-emerald-deep" />
-                        <span>A4 Grid Layout (8 chits per page)</span>
-                      </div>
-                      <p className="text-xs text-stone-500">Prints verified applicant chits with QR code, applicant name, and series registration numbers.</p>
+                    <div className="space-y-1.5">
+                      <label className="block text-xs font-semibold text-stone-700">
+                        Select Draw to Print Chits From: <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        className={`input w-full font-semibold ${selectedPrintDrawId ? "bg-white text-emerald-deep" : "bg-red-50 border-red-300 text-red-700"}`}
+                        value={selectedPrintDrawId}
+                        onChange={(e) => setSelectedPrintDrawId(e.target.value)}
+                      >
+                        <option value="">⚠ Select a draw first (required)</option>
+                        {drawsList.map((draw) => (
+                          <option key={draw.id} value={draw.id}>
+                            Draw #{draw.drawIndex}: {draw.name} ({draw.status.toUpperCase()}) - {draw.totalApplications} Entries
+                          </option>
+                        ))}
+                      </select>
+                      {!selectedPrintDrawId && (
+                        <p className="text-xs text-red-500 font-medium">⚠ You must select a specific draw. Printing across all draws is not allowed.</p>
+                      )}
                     </div>
 
-                    <button className="btn-primary w-full justify-center py-3" onClick={printA4LuckyDrawChits}>
+                    {selectedPrintDrawId && (
+                      <div className="p-4 bg-cream border border-gold/40 rounded-lg space-y-3">
+                        <div className="flex items-center gap-2 text-xs font-semibold text-stone-700">
+                          <Printer className="h-4 w-4 text-emerald-deep" />
+                          <span>A4 Grid Layout (8 chits per page)</span>
+                        </div>
+                        <p className="text-xs text-stone-500">
+                          Prints verified applicant chits with QR code, applicant name, and registration numbers
+                          {` for Draw #${drawsList.find(d => d.id === selectedPrintDrawId)?.drawIndex || ""}: ${drawsList.find(d => d.id === selectedPrintDrawId)?.name || ""}`}.
+                        </p>
+                      </div>
+                    )}
+
+                    <button
+                      className={`btn-primary w-full justify-center py-3 ${!selectedPrintDrawId ? "opacity-50 cursor-not-allowed" : ""}`}
+                      onClick={() => printA4LuckyDrawChits()}
+                      disabled={!selectedPrintDrawId}
+                    >
                       <Printer className="h-4 w-4" />
-                      Print A4 Physical Draw Chits
+                      {selectedPrintDrawId
+                        ? `Print Chits for "${drawsList.find(d => d.id === selectedPrintDrawId)?.name || "Selected Draw"}"`
+                        : "Select a Draw First to Print Chits"
+                      }
                     </button>
                   </div>
                 </div>

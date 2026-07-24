@@ -65,6 +65,12 @@ export type DrawResult = {
   selectedCount: number;
   percentage: number | null;
   createdAt: string;
+  draw?: {
+    name: string;
+    status: string;
+    startDate: string | null;
+    endDate: string | null;
+  };
 };
 
 export type Stats = {

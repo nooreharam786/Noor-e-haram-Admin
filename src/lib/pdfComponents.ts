@@ -288,9 +288,8 @@ export function pdfImportantInfo(): string {
 }
 
 export function pdfSealsRow(customSealUrl?: string, customSignatureUrl?: string, signatoryName?: string): string {
-  const defaultSignature = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 100'%3E%3Cpath d='M20,60 Q50,20 80,40 T150,30 T220,50 T280,20' fill='none' stroke='%23333' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M60,80 Q120,70 180,80' fill='none' stroke='%23333' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E`;
-  const signatureImage = customSignatureUrl || defaultSignature;
-  const signatoryText = signatoryName || "Noor E Haram Charity Foundation";
+  const signatureImage = customSignatureUrl || "/signature.png";
+  const signatoryText = signatoryName || "Afzal Shaikh";
 
   const sealContent = customSealUrl
     ? `<img src="${customSealUrl}" style="width: 100%; height: 100%; object-fit: contain;" />`
@@ -317,10 +316,11 @@ export function pdfSealsRow(customSealUrl?: string, customSignatureUrl?: string,
 
       <!-- Signature -->
       <div style="display: flex; flex-direction: column; align-items: center;">
-        <span style="font-size: 8px; color: ${PDF_COLORS.textMuted}; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px;">AUTHORIZED SIGNATURE</span>
+        <span style="font-size: 8px; color: ${PDF_COLORS.textMuted}; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px;">AUTHORIZED DIGITAL SIGNATURE</span>
         <img src="${signatureImage}" style="height: 40px; max-width: 180px; object-fit: contain; margin-bottom: 2px;" />
         <div style="width: 200px; height: 1px; background-color: ${PDF_COLORS.textMain}; margin-bottom: 4px;"></div>
-        <span style="font-size: 9px; font-weight: 500; color: ${PDF_COLORS.textMain};">${signatoryText}</span>
+        <span style="font-size: 9px; font-weight: 600; color: ${PDF_COLORS.textMain};">${signatoryText}</span>
+        <span style="font-size: 7.5px; color: ${PDF_COLORS.textMuted}; font-style: italic; margin-top: 1px;">(Digitally Signed)</span>
       </div>
 
       <!-- Digital Document Badge -->
@@ -328,7 +328,7 @@ export function pdfSealsRow(customSealUrl?: string, customSignatureUrl?: string,
         <div style="color: ${PDF_COLORS.primary}; width: 16px; height: 16px; flex-shrink: 0;">${ICONS.shieldCheck}</div>
         <div style="display: flex; flex-direction: column;">
           <span style="font-size: 8px; font-weight: 700; color: ${PDF_COLORS.textMain}; margin-bottom: 2px;">DIGITAL DOCUMENT</span>
-          <span style="font-size: 7px; color: ${PDF_COLORS.textMuted}; line-height: 1.3;">This document is computer generated and verified by Noor E Haram Charity Foundation.</span>
+          <span style="font-size: 7px; color: ${PDF_COLORS.textMuted}; line-height: 1.3;">This document is computer generated and digitally signed by Noor E Haram Charity Foundation.</span>
         </div>
       </div>
 

@@ -91,8 +91,8 @@ export function generatePaymentReceiptHtml(data: PaymentReceiptData, orgSettings
 
     ${pdfSealsRow(
       orgSettings?.seal_image_url || undefined,
-      orgSettings?.signature_image_url || undefined,
-      orgSettings?.signatory_name || undefined
+      orgSettings?.signature_image_url || "/signature.png",
+      orgSettings?.signatory_name || "Afzal Shaikh"
     )}
 
     ${pdfFooter({

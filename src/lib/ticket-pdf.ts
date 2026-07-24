@@ -100,7 +100,11 @@ export async function downloadApplicantTicket(applicant: Applicant) {
       pdfImportantInfo()
     )}
 
-    ${pdfSealsRow()}
+    ${pdfSealsRow(
+      undefined,
+      "/signature.png",
+      "Afzal Shaikh"
+    )}
     ${pdfFooter()}
   `;
 
