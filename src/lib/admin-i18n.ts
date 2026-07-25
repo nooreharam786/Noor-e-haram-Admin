@@ -20,6 +20,7 @@ export const adminTranslations: Record<AdminLang, Record<string, string>> = {
     tabUsers: "Users",
     tabApplicants: "Lucky Draw Applicants",
     tabDrawControl: "Draw Control",
+    tabYoutubeStream: "YouTube & Live Stream",
     tabPayments: "Payments",
     tabDonations: "Donations",
     tabAnnouncements: "Announcements",

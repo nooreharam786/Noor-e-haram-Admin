@@ -37,7 +37,8 @@ import {
   Globe,
   CheckSquare,
   Eye,
-  EyeOff
+  EyeOff,
+  Video
 } from "lucide-react";
 import { toast, Toaster } from "sonner";
 import { API_URL, api, clearToken, getToken, toQuery } from "@/lib/api";
@@ -49,9 +50,9 @@ import { AdminLang, adminLanguages, getAdminTranslation } from "@/lib/admin-i18n
 
 import type { Applicant, ApplicationStatus, Donation, DrawResult, Feedback, Paginated, PaymentStatus, PublicDocument, Stats, User } from "@/types/api";
 
-type Tab = "Dashboard" | "Users" | "Lucky Draw Applicants" | "Draw Control" | "Payments" | "Donations" | "Announcements" | "Dua Guidelines" | "Gallery CMS" | "Feedback CMS" | "Contact & Settings" | "Settings";
+type Tab = "Dashboard" | "Users" | "Lucky Draw Applicants" | "Draw Control" | "YouTube & Live Stream" | "Payments" | "Donations" | "Announcements" | "Dua Guidelines" | "Gallery CMS" | "Feedback CMS" | "Contact & Settings" | "Settings";
 type SortOrder = "asc" | "desc";
-type SettingsTab = "General" | "Organization Assets" | "Payment" | "Social Media" | "Contact" | "Documents" | "Gallery" | "Content" | "Admin Profile";
+type SettingsTab = "Organization Assets" | "Payment Gateway" | "Social Media & Location" | "Admin Profile";
 
 type DrawItem = {
   id: string;
@@ -175,6 +176,7 @@ const tabs: { name: Tab; short: string; icon: typeof Gauge }[] = [
   { name: "Users", short: "Users", icon: Users },
   { name: "Lucky Draw Applicants", short: "Draw", icon: Trophy },
   { name: "Draw Control", short: "Run", icon: Sparkles },
+  { name: "YouTube & Live Stream", short: "Media", icon: Video },
   { name: "Payments", short: "Payments", icon: CreditCard },
   { name: "Donations", short: "Donations", icon: HandHeart },
   { name: "Announcements", short: "Alerts", icon: Bell },
@@ -367,7 +369,7 @@ export default function AdminDashboard() {
   const [donations, setDonations] = useState<Paginated<Donation> | null>(null);
   const [paymentQuery, setPaymentQuery] = useState({ page: 1, search: "", status: "" as PaymentStatus | "", drawId: "", dateFilter: "" });
   const [donationQuery, setDonationQuery] = useState({ page: 1, search: "", status: "", dateFilter: "" });
-  const [settingsTab, setSettingsTab] = useState<SettingsTab>("General");
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>("Organization Assets");
   const [markingPaid, setMarkingPaid] = useState<string | null>(null);
   const [newFeedback, setNewFeedback] = useState({ name: "", rating: 5, location: "", message: "" });
   const [documentForm, setDocumentForm] = useState({ title: "", description: "", kind: "dua" });
@@ -2027,9 +2029,58 @@ export default function AdminDashboard() {
                   )}
                 </div>
 
-                {/* Section 2: Application Window Control & Print Chits */}
-                <div className="grid gap-6 md:grid-cols-2">
+                {/* Section 2: Application Window Control, Public Video Link & Print Chits */}
+                <div className="grid gap-6 lg:grid-cols-3">
                   
+                  {/* Public YouTube Live / Result Video Link */}
+                  <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-card space-y-4 sm:p-6">
+                    <div>
+                      <h3 className="text-lg font-semibold text-emerald-deep flex items-center gap-2">
+                        <Video className="h-5 w-5 text-red-600" />
+                        Public YouTube Video Link
+                      </h3>
+                      <p className="mt-1 text-xs text-stone-500">Publish live stream or result draw video directly to frontend website (/resources page).</p>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="block text-xs font-semibold text-stone-700">
+                        YouTube Live / Result Video URL
+                      </label>
+                      <input
+                        className="input text-sm"
+                        placeholder="https://www.youtube.com/watch?v=..."
+                        value={settings.resultsYoutubeUrl}
+                        onChange={(e) => setSettings((v) => ({ ...v, resultsYoutubeUrl: e.target.value }))}
+                      />
+                      <p className="text-[11px] text-stone-400">
+                        Supports YouTube video links, short links, or live streams.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="btn-primary w-full justify-center py-2.5 text-xs font-bold"
+                      disabled={saving}
+                      onClick={async () => {
+                        setSaving(true);
+                        try {
+                          await api("/admin/settings", {
+                            method: "PATCH",
+                            body: JSON.stringify({ resultsYoutubeUrl: settings.resultsYoutubeUrl })
+                          });
+                          toast.success("YouTube URL published to frontend!");
+                        } catch (err) {
+                          toast.error(err instanceof Error ? err.message : "Failed to publish YouTube URL");
+                        } finally {
+                          setSaving(false);
+                        }
+                      }}
+                    >
+                      {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Video className="h-4 w-4" />}
+                      Publish Video Link to Frontend
+                    </button>
+                  </div>
+
                   {/* Application Window Control */}
                   <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-card space-y-4 sm:p-6">
                     <div>
@@ -2180,6 +2231,161 @@ export default function AdminDashboard() {
                     >
                       Mark All Remaining Applicants as 'Not Selected'
                     </button>
+                  </div>
+                </div>
+              </motion.section>
+            )}
+
+            {activeTab === "YouTube & Live Stream" && (
+              <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+                <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-card space-y-6 sm:p-6">
+                  <div className="flex flex-wrap items-center justify-between gap-4 border-b border-stone-100 pb-4">
+                    <div>
+                      <h3 className="text-xl font-bold text-emerald-deep flex items-center gap-2">
+                        <Video className="h-6 w-6 text-red-600" />
+                        Public YouTube Video & Live Selection Stream
+                      </h3>
+                      <p className="text-xs text-stone-600 mt-1">
+                        Publish live streams or selection result video links directly to the public website homepage and resources page.
+                      </p>
+                    </div>
+                    <a
+                      href="https://www.youtube.com"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-secondary text-xs"
+                    >
+                      <Globe className="h-4 w-4" />
+                      Open YouTube Studio
+                    </a>
+                  </div>
+
+                  <div className="grid gap-6 lg:grid-cols-2">
+                    {/* Link Publisher Box */}
+                    <div className="space-y-5 rounded-xl border border-stone-200 bg-cream/50 p-5">
+                      <h4 className="font-semibold text-emerald-deep">1. Selection Result / Live Selection Stream Link</h4>
+                      <p className="text-xs text-stone-500">
+                        Paste any YouTube video link (watch URL, shortened link, or live stream URL). This video is embedded directly in the frontend <strong>/resources</strong> section.
+                      </p>
+
+                      <label className="grid gap-2 text-xs font-semibold text-stone-700">
+                        YouTube Stream / Video URL
+                        <input
+                          className="input text-sm"
+                          placeholder="e.g. https://www.youtube.com/watch?v=... or https://youtu.be/..."
+                          value={settings.resultsYoutubeUrl}
+                          onChange={(e) => setSettings((v) => ({ ...v, resultsYoutubeUrl: e.target.value }))}
+                        />
+                      </label>
+
+                      <div className="flex items-center gap-3 pt-2">
+                        <button
+                          type="button"
+                          className="btn-primary flex-1 justify-center py-2.5 text-xs font-bold"
+                          disabled={saving}
+                          onClick={async () => {
+                            setSaving(true);
+                            try {
+                              await api("/admin/settings", {
+                                method: "PATCH",
+                                body: JSON.stringify({ resultsYoutubeUrl: settings.resultsYoutubeUrl })
+                              });
+                              toast.success("YouTube URL published live to frontend!");
+                            } catch (err) {
+                              toast.error(err instanceof Error ? err.message : "Failed to publish YouTube URL");
+                            } finally {
+                              setSaving(false);
+                            }
+                          }}
+                        >
+                          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Video className="h-4 w-4" />}
+                          Publish Video Link to Frontend
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Live Preview Box */}
+                    <div className="space-y-3 rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
+                      <h4 className="font-semibold text-emerald-deep flex items-center justify-between">
+                        <span>2. Live Website Preview</span>
+                        {settings.resultsYoutubeUrl ? (
+                          <span className="rounded-full bg-emerald-mist px-2.5 py-0.5 text-[11px] font-bold text-emerald-deep">
+                            ACTIVE
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-stone-100 px-2.5 py-0.5 text-[11px] font-bold text-stone-500">
+                            NO LINK SET
+                          </span>
+                        )}
+                      </h4>
+
+                      <div className="aspect-video overflow-hidden rounded-lg bg-stone-900 flex items-center justify-center border border-stone-200">
+                        {settings.resultsYoutubeUrl ? (
+                          <iframe
+                            className="h-full w-full"
+                            src={
+                              settings.resultsYoutubeUrl.includes("embed")
+                                ? settings.resultsYoutubeUrl
+                                : settings.resultsYoutubeUrl.includes("youtu.be")
+                                ? `https://www.youtube.com/embed/${settings.resultsYoutubeUrl.split("/").pop()?.split("?")[0]}`
+                                : settings.resultsYoutubeUrl.includes("watch?v=")
+                                ? `https://www.youtube.com/embed/${new URLSearchParams(settings.resultsYoutubeUrl.split("?")[1] || "").get("v")}`
+                                : settings.resultsYoutubeUrl.includes("/live/")
+                                ? `https://www.youtube.com/embed/${settings.resultsYoutubeUrl.split("/live/")[1]?.split("?")[0]}`
+                                : settings.resultsYoutubeUrl
+                            }
+                            title="YouTube Preview"
+                            allowFullScreen
+                          />
+                        ) : (
+                          <div className="p-6 text-center text-stone-400">
+                            <Video className="mx-auto mb-2 h-10 w-10 text-stone-600" />
+                            <p className="text-sm font-medium">No YouTube link provided yet</p>
+                            <p className="mt-1 text-xs text-stone-500">Paste a link on the left and click publish to preview.</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Channel Link */}
+                  <div className="border-t border-stone-100 pt-5 grid gap-4 md:grid-cols-2">
+                    <label className="grid gap-2 text-xs font-semibold text-stone-700">
+                      Official YouTube Channel Page URL (Header & Footer Link)
+                      <input
+                        className="input text-sm"
+                        placeholder="https://youtube.com/@nooreharamcharityfoundation"
+                        value={settings.socialYoutubeUrl}
+                        onChange={(e) => setSettings((v) => ({ ...v, socialYoutubeUrl: e.target.value }))}
+                      />
+                      <span className="text-[11px] text-stone-400">
+                        This link opens the foundation's official YouTube channel when users click the YouTube icon in the website topbar or footer.
+                      </span>
+                    </label>
+
+                    <div className="flex items-end">
+                      <button
+                        type="button"
+                        className="btn-secondary h-10 text-xs px-5 font-semibold"
+                        disabled={saving}
+                        onClick={async () => {
+                          setSaving(true);
+                          try {
+                            await api("/admin/settings", {
+                              method: "PATCH",
+                              body: JSON.stringify({ socialYoutubeUrl: settings.socialYoutubeUrl })
+                            });
+                            toast.success("YouTube Channel URL updated!");
+                          } catch (err) {
+                            toast.error(err instanceof Error ? err.message : "Failed to update channel URL");
+                          } finally {
+                            setSaving(false);
+                          }
+                        }}
+                      >
+                        Save Channel Link
+                      </button>
+                    </div>
                   </div>
                 </div>
               </motion.section>
@@ -3036,11 +3242,11 @@ export default function AdminDashboard() {
               </TableShell>
             )}
 
-            {activeTab === "Settings" && (
+            {(activeTab === "Contact & Settings" || activeTab === "Settings") && (
               <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="max-w-5xl space-y-6">
                 {/* Settings Sub-Tabs */}
                 <div className="flex flex-wrap gap-2">
-                  {(["General", "Organization Assets", "Payment", "Social Media", "Contact", "Documents", "Gallery", "Content", "Admin Profile"] as SettingsTab[]).map((tab) => (
+                  {(["Organization Assets", "Payment Gateway", "Social Media & Location", "Admin Profile"] as SettingsTab[]).map((tab) => (
                     <button
                       key={tab}
                       type="button"
@@ -3055,16 +3261,6 @@ export default function AdminDashboard() {
                 </div>
 
                 <form onSubmit={saveSettings} className="rounded-xl border border-stone-200 bg-white p-5 shadow-card sm:p-6">
-
-                  {settingsTab === "General" && (
-                    <div className="grid gap-5">
-                      <h3 className="text-xl font-semibold text-emerald-deep">General Settings</h3>
-                      <label className="grid gap-2 text-sm font-medium text-stone-700">
-                        Umrah Package Price (₹)
-                        <input className="input" type="number" min={0} value={settings.umrahPackagePrice} onChange={(e) => setSettings((v) => ({ ...v, umrahPackagePrice: Number(e.target.value) }))} />
-                      </label>
-                    </div>
-                  )}
 
                   {settingsTab === "Organization Assets" && (
                     <div className="grid gap-6">
@@ -3211,7 +3407,7 @@ export default function AdminDashboard() {
                             ) : (
                               <div className="text-center text-xs text-stone-400">
                                 <p className="font-medium text-stone-600">Default Seal Active</p>
-                                <p>(Gold Emblem Vector)</p>
+                                <p>(SVG Seal Element)</p>
                               </div>
                             )}
                           </div>
@@ -3291,7 +3487,7 @@ export default function AdminDashboard() {
                         </div>
                       </div>
 
-                      {/* LIVE PREVIEW SECTION (TASK 5) */}
+                      {/* LIVE PREVIEW SECTION */}
                       <div className="rounded-xl border border-gold/40 bg-white p-5 space-y-4 shadow-sm">
                         <div className="flex items-center justify-between border-b border-stone-200 pb-3">
                           <div>
@@ -3328,9 +3524,9 @@ export default function AdminDashboard() {
                     </div>
                   )}
 
-                  {settingsTab === "Payment" && (
+                  {settingsTab === "Payment Gateway" && (
                     <div className="grid gap-5">
-                      <h3 className="text-xl font-semibold text-emerald-deep">Payment Settings</h3>
+                      <h3 className="text-xl font-semibold text-emerald-deep">Payment Gateway Settings</h3>
                       <p className="text-sm text-stone-500">Only the Razorpay <strong>public key</strong> is stored here. Never enter the secret key.</p>
                       <label className="grid gap-2 text-sm font-medium text-stone-700">
                         Razorpay Public Key (key_id)
@@ -3348,106 +3544,22 @@ export default function AdminDashboard() {
                         <input className="input" type="number" min={1} value={settings.defaultDrawAmount} onChange={(e) => setSettings((v) => ({ ...v, defaultDrawAmount: Number(e.target.value) }))} />
                         <span className="text-xs text-stone-400">This is for display only. The backend always enforces ₹1499.</span>
                       </label>
-                      <label className="grid gap-2 text-sm font-medium text-stone-700">
-                        Convenience Fee (%)
-                        <input className="input" type="number" step="0.01" min={0} max={100} value={(settings as any).convenienceFeePercent ?? 1.25} onChange={(e) => setSettings((v) => ({ ...v, convenienceFeePercent: Number(e.target.value) }))} />
-                        <span className="text-xs text-stone-400">Configured convenience fee percentage automatically loaded on frontend (e.g. 1%, 1.25%, 1.5%, 2%).</span>
-                      </label>
                     </div>
                   )}
 
-                  {settingsTab === "Social Media" && (
+                  {settingsTab === "Social Media & Location" && (
                     <div className="grid gap-5">
-                      <h3 className="text-xl font-semibold text-emerald-deep">Social Media</h3>
+                      <h3 className="text-xl font-semibold text-emerald-deep">Social Media Links & Map Embed</h3>
                       <div className="grid gap-5 md:grid-cols-2">
-                        <label className="grid gap-2 text-sm font-medium text-stone-700">Facebook URL<input className="input" value={settings.socialFacebookUrl} onChange={(e) => setSettings((v) => ({ ...v, socialFacebookUrl: e.target.value }))} /></label>
-                        <label className="grid gap-2 text-sm font-medium text-stone-700">Instagram URL<input className="input" value={settings.socialInstagramUrl} onChange={(e) => setSettings((v) => ({ ...v, socialInstagramUrl: e.target.value }))} /></label>
-                        <label className="grid gap-2 text-sm font-medium text-stone-700">YouTube URL<input className="input" value={settings.socialYoutubeUrl} onChange={(e) => setSettings((v) => ({ ...v, socialYoutubeUrl: e.target.value }))} /></label>
-                        <label className="grid gap-2 text-sm font-medium text-stone-700">WhatsApp Link<input className="input" value={settings.socialWhatsappUrl} onChange={(e) => setSettings((v) => ({ ...v, socialWhatsappUrl: e.target.value }))} /></label>
+                        <label className="grid gap-2 text-sm font-medium text-stone-700">Facebook Page URL<input className="input" placeholder="https://facebook.com/..." value={settings.socialFacebookUrl} onChange={(e) => setSettings((v) => ({ ...v, socialFacebookUrl: e.target.value }))} /></label>
+                        <label className="grid gap-2 text-sm font-medium text-stone-700">Instagram Profile URL<input className="input" placeholder="https://instagram.com/..." value={settings.socialInstagramUrl} onChange={(e) => setSettings((v) => ({ ...v, socialInstagramUrl: e.target.value }))} /></label>
+                        <label className="grid gap-2 text-sm font-medium text-stone-700">YouTube Channel URL<input className="input" placeholder="https://youtube.com/@..." value={settings.socialYoutubeUrl} onChange={(e) => setSettings((v) => ({ ...v, socialYoutubeUrl: e.target.value }))} /></label>
+                        <label className="grid gap-2 text-sm font-medium text-stone-700">WhatsApp Contact Link<input className="input" placeholder="https://wa.me/..." value={settings.socialWhatsappUrl} onChange={(e) => setSettings((v) => ({ ...v, socialWhatsappUrl: e.target.value }))} /></label>
                       </div>
-                    </div>
-                  )}
-
-                  {settingsTab === "Contact" && (
-                    <div className="grid gap-5">
-                      <h3 className="text-xl font-semibold text-emerald-deep">Contact Information</h3>
-                      <label className="grid gap-2 text-sm font-medium text-stone-700">Phone<input className="input" value={settings.contactPhone} onChange={(e) => setSettings((v) => ({ ...v, contactPhone: e.target.value }))} /></label>
-                      <label className="grid gap-2 text-sm font-medium text-stone-700">Email<input className="input" type="email" value={settings.contactEmail} onChange={(e) => setSettings((v) => ({ ...v, contactEmail: e.target.value }))} /></label>
-                      <label className="grid gap-2 text-sm font-medium text-stone-700">Address<textarea className="input min-h-24" value={settings.contactAddress} onChange={(e) => setSettings((v) => ({ ...v, contactAddress: e.target.value }))} /></label>
-                      <label className="grid gap-2 text-sm font-medium text-stone-700">
+                      <label className="grid gap-2 text-sm font-medium text-stone-700 mt-2">
                         Google Maps Embed URL
                         <input className="input" placeholder="https://www.google.com/maps/embed?pb=..." value={settings.googleMapsUrl} onChange={(e) => setSettings((v) => ({ ...v, googleMapsUrl: e.target.value }))} />
-                        <span className="text-xs text-stone-400">Enter full Google Maps iframe embed URL. Changes will instantly update the map on the Contact page.</span>
-                      </label>
-                    </div>
-                  )}
-
-                  {settingsTab === "Documents" && (
-                    <div className="grid gap-5">
-                      <h3 className="text-xl font-semibold text-emerald-deep">Documents</h3>
-                      <div className="grid gap-3 md:grid-cols-2">
-                        <input className="input" placeholder="PDF title" value={documentForm.title} onChange={(e) => setDocumentForm((v) => ({ ...v, title: e.target.value }))} />
-                        <select className="input" value={documentForm.kind} onChange={(e) => setDocumentForm((v) => ({ ...v, kind: e.target.value }))}>
-                          <option value="dua">Dua PDF</option>
-                          <option value="terms">Terms PDF</option>
-                          <option value="privacy">Privacy PDF</option>
-                        </select>
-                        <input className="input md:col-span-2" placeholder="Short description" value={documentForm.description} onChange={(e) => setDocumentForm((v) => ({ ...v, description: e.target.value }))} />
-                        <input className="input md:col-span-2" type="file" accept="application/pdf" onChange={(e) => setDocumentFile(e.target.files?.[0] ?? null)} />
-                      </div>
-                      <button type="button" className="btn-secondary w-fit" onClick={uploadDocument} disabled={saving || !documentFile || !documentForm.title}>
-                        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-                        Upload PDF
-                      </button>
-                      {documents.length > 0 && (
-                        <div className="grid gap-2">
-                          {documents.map((doc) => (
-                            <div key={doc.id} className="flex flex-col gap-3 rounded-lg border border-stone-200 bg-cream p-3 text-sm md:flex-row md:items-center md:justify-between">
-                              <div><p className="font-semibold">{doc.title} <span className="text-xs text-stone-400">({doc.kind})</span></p><a className="text-emerald-deep underline" href={doc.url} target="_blank" rel="noreferrer">{doc.filename}</a></div>
-                              <button type="button" className="btn-secondary w-fit text-red-600" onClick={() => deleteDocument(doc.id)} disabled={saving}><Trash2 className="h-4 w-4" />Remove</button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {settingsTab === "Gallery" && (
-                    <div className="grid gap-5">
-                      <h3 className="text-xl font-semibold text-emerald-deep">Gallery</h3>
-                      <div className="grid gap-3 rounded-lg border border-stone-200 bg-cream p-4">
-                        <label className="grid gap-2 text-sm font-medium text-stone-700">
-                          Upload Images
-                          <input className="input bg-white" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple onChange={(e) => setGalleryFiles(e.target.files)} />
-                        </label>
-                        <button type="button" className="btn-secondary w-fit" onClick={uploadGalleryImages} disabled={saving || !galleryFiles?.length}>
-                          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                          Upload images
-                        </button>
-                        {galleryImages.length > 0 && (
-                          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                            {galleryImages.map((imageUrl) => (
-                              <div key={imageUrl} className="group relative overflow-hidden rounded-lg border border-stone-200 bg-white">
-                                <img src={imageUrl} alt="" className="h-24 w-full object-cover" />
-                                <button type="button" className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-white/95 text-red-600 shadow-card" onClick={() => removeGalleryImage(imageUrl)} disabled={saving}><Trash2 className="h-4 w-4" /></button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {settingsTab === "Content" && (
-                    <div className="grid gap-5">
-                      <h3 className="text-xl font-semibold text-emerald-deep">Content</h3>
-                      <label className="grid gap-2 text-sm font-medium text-stone-700">
-                        YouTube Live/Result Link
-                        <input className="input" placeholder="https://www.youtube.com/watch?v=..." value={settings.resultsYoutubeUrl} onChange={(e) => setSettings((v) => ({ ...v, resultsYoutubeUrl: e.target.value }))} />
-                      </label>
-                      <label className="grid gap-2 text-sm font-medium text-stone-700">
-                        Terms Document URL
-                        <input className="input" value={settings.termsDocumentUrl} onChange={(e) => setSettings((v) => ({ ...v, termsDocumentUrl: e.target.value }))} />
+                        <span className="text-xs text-stone-400">Enter full Google Maps iframe embed URL for the Contact Us page.</span>
                       </label>
                     </div>
                   )}
