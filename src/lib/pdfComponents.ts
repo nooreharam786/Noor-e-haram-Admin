@@ -195,17 +195,17 @@ export function pdfCard(title: string, icon: string, content: string): string {
 
 export function pdfApplicantRow(icon: string, label: string, value: string): string {
   return `
-    <div style="display: flex; align-items: center; padding: 12px 14px; border-bottom: 1px solid ${PDF_COLORS.borderLight};">
-      <div style="color: ${PDF_COLORS.primary}; width: 14px; height: 14px; margin-right: 12px; flex-shrink: 0;">${icon}</div>
-      <div style="width: 110px; font-size: 10px; color: ${PDF_COLORS.textMuted}; flex-shrink: 0;">${label}</div>
-      <div style="font-size: 10px; font-weight: 600; color: ${PDF_COLORS.textMain};">${formatVal(value)}</div>
+    <div style="display: flex; align-items: center; padding: 10px 14px; border-bottom: 1px solid ${PDF_COLORS.borderLight}; min-height: 38px;">
+      <div style="color: ${PDF_COLORS.primary}; width: 14px; height: 14px; margin-right: 10px; flex-shrink: 0;">${icon}</div>
+      <div style="width: 100px; font-size: 10px; font-weight: 600; color: ${PDF_COLORS.textMuted}; flex-shrink: 0;">${label}</div>
+      <div style="font-size: 10px; font-weight: 600; color: ${PDF_COLORS.textMain}; flex: 1; text-align: right; word-break: break-all;">${formatVal(value)}</div>
     </div>
   `;
 }
 
 export function pdfDetailRow(label: string, value: string, isAlternate: boolean = false, isPill: boolean = false, pillColor: "success" | "warning" = "success"): string {
   const bg = isAlternate ? "#FAFAFA" : "#FFFFFF";
-  let valHtml = `<div style="font-size: 10px; font-weight: 600; color: ${PDF_COLORS.textMain};">${formatVal(value)}</div>`;
+  let valHtml = `<div style="font-size: 10px; font-weight: 600; color: ${PDF_COLORS.textMain}; flex: 1; text-align: right; word-break: break-all;">${formatVal(value)}</div>`;
   
   if (isPill) {
     const pBg = pillColor === "success" ? "#408458" : "#FAF4EC";
@@ -216,15 +216,17 @@ export function pdfDetailRow(label: string, value: string, isAlternate: boolean 
       : `<svg style="width:10px;height:10px;margin-right:4px;" viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>`;
       
     valHtml = `
-      <div style="background-color: ${pBg}; border: 1px solid ${pBorder}; color: ${pColor}; padding: 3px 10px; border-radius: 12px; font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; text-transform: uppercase; transform: translateY(-2px);">
-        ${pIcon} ${formatVal(value)}
+      <div style="flex: 1; display: flex; justify-content: flex-end;">
+        <div style="background-color: ${pBg}; border: 1px solid ${pBorder}; color: ${pColor}; padding: 3px 10px; border-radius: 12px; font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; text-transform: uppercase;">
+          ${pIcon} ${formatVal(value)}
+        </div>
       </div>
     `;
   }
 
   return `
-    <div style="display: flex; align-items: center; padding: 10px 14px; border-bottom: 1px solid ${PDF_COLORS.borderLight}; background-color: ${bg};">
-      <div style="width: 140px; font-size: 10px; color: ${PDF_COLORS.textMuted}; flex-shrink: 0;">${label}</div>
+    <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid ${PDF_COLORS.borderLight}; background-color: ${bg}; min-height: 38px;">
+      <div style="width: 100px; font-size: 10px; font-weight: 600; color: ${PDF_COLORS.textMuted}; flex-shrink: 0;">${label}</div>
       ${valHtml}
     </div>
   `;
@@ -289,7 +291,9 @@ export function pdfImportantInfo(): string {
 
 export function pdfSealsRow(customSealUrl?: string, customSignatureUrl?: string, signatoryName?: string): string {
   const signatureImage = customSignatureUrl || "/signature.png";
-  const signatoryText = signatoryName || "Afzal Shaikh";
+  const signatoryText = signatoryName && !signatoryName.toLowerCase().includes("authorized signatory")
+    ? signatoryName
+    : "Afzal Shaikh";
 
   const sealContent = customSealUrl
     ? `<img src="${customSealUrl}" style="width: 100%; height: 100%; object-fit: contain;" />`

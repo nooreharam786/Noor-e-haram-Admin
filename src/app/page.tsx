@@ -80,6 +80,7 @@ type MarqueeItem = {
   lastDate?: string | null;
   statusBadge?: string | null;
   priority: number;
+  createdAt?: string;
 };
 
 type FeedbackCMSItem = {
@@ -205,8 +206,11 @@ const statusTone: Record<string, string> = {
   user: "bg-stone-100 text-stone-600"
 };
 
-function formatDate(value: string) {
-  return format(new Date(value), "dd MMM yyyy, h:mm a");
+function formatDate(value?: string | number | Date | null) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (isNaN(date.getTime())) return "—";
+  return format(date, "dd MMM yyyy, h:mm a");
 }
 
 function Badge({ value }: { value: string }) {
@@ -394,7 +398,7 @@ export default function AdminDashboard() {
   const [selectedPrintDrawId, setSelectedPrintDrawId] = useState<string>("");
   const [newDrawName, setNewDrawName] = useState<string>("");
   const [bannerMessageInput, setBannerMessageInput] = useState<string>("");
-  const [newMarquee, setNewMarquee] = useState({ content: "", linkUrl: "", eventDate: "", lastDate: "", statusBadge: "Applications Open", priority: 0 });
+  const [newMarquee, setNewMarquee] = useState({ content: "", linkUrl: "", eventDate: "", lastDate: "", statusBadge: "", priority: 0 });
   const [selectedWinners, setSelectedWinners] = useState<string[]>([]);
   const [selectedWaitingList, setSelectedWaitingList] = useState<string[]>([]);
 
@@ -830,7 +834,7 @@ export default function AdminDashboard() {
         method: "POST",
         body: JSON.stringify(newMarquee)
       });
-      setNewMarquee({ content: "", linkUrl: "", eventDate: "", lastDate: "", statusBadge: "Applications Open", priority: 0 });
+      setNewMarquee({ content: "", linkUrl: "", eventDate: "", lastDate: "", statusBadge: "", priority: 0 });
       toast.success("Marquee announcement added!");
       await loadMarquees();
     } catch (err) {
@@ -845,6 +849,19 @@ export default function AdminDashboard() {
       await loadMarquees();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to remove marquee");
+    }
+  }
+
+  async function handleToggleMarquee(id: string, currentActive: boolean) {
+    try {
+      await api(`/admin/marquee/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ isActive: !currentActive })
+      });
+      toast.success(!currentActive ? "Marquee ticker enabled" : "Marquee ticker disabled");
+      await loadMarquees();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update marquee status");
     }
   }
 
@@ -1220,6 +1237,7 @@ export default function AdminDashboard() {
       loadDonations().catch((error) => toast.error(error.message));
     } else if (activeTab === "Announcements") {
       loadAnnouncementsCMS().catch((error) => toast.error(error.message));
+      loadMarquees().catch((error) => toast.error(error.message));
     } else if (activeTab === "Dua Guidelines") {
       loadDuaGuidelinesCMS().catch((error) => toast.error(error.message));
     } else if (activeTab === "Gallery CMS") {
@@ -1627,7 +1645,7 @@ export default function AdminDashboard() {
                         </thead>
                         <tbody className="divide-y divide-stone-100 text-stone-700">
                           {drawHistory.map((result, idx) => (
-                            <tr key={result.id} className={`hover:bg-stone-50 ${idx === 0 ? "bg-gold-soft" : ""}`}>
+                            <tr key={result.id || `draw-hist-${idx}`} className={`hover:bg-stone-50 ${idx === 0 ? "bg-gold-soft" : ""}`}>
                               <td className="px-4 py-3 font-mono text-xs text-stone-400">#{drawHistory.length - idx}</td>
                               <td className="px-4 py-3 font-semibold text-emerald-deep">
                                 {result.draw?.name || "Lucky Draw"}
@@ -2168,141 +2186,264 @@ export default function AdminDashboard() {
             )}
 
             {activeTab === "Announcements" && (
-              <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="grid gap-6 xl:grid-cols-[400px_1fr]">
-                {/* Announcement Creator Form */}
-                <form onSubmit={(e) => { e.preventDefault(); handleCreateAnnouncement(); }} className="rounded-xl border border-stone-200 bg-white p-5 shadow-card space-y-4 sm:p-6">
-                  <h3 className="text-xl font-semibold text-emerald-deep">Create Announcement</h3>
-
-                  <label className="grid gap-2 text-xs font-semibold text-stone-700">
-                    Title *
-                    <input
-                      className="input text-sm"
-                      placeholder="e.g. 2nd Umrah Lucky Draw Registration Announced!"
-                      value={newAnnouncementForm.title}
-                      onChange={(e) => setNewAnnouncementForm((v) => ({ ...v, title: e.target.value }))}
-                      required
-                    />
-                  </label>
-
-                  <label className="grid gap-2 text-xs font-semibold text-stone-700">
-                    Description *
-                    <textarea
-                      className="input min-h-24 text-sm"
-                      placeholder="Detailed announcement text..."
-                      value={newAnnouncementForm.description}
-                      onChange={(e) => setNewAnnouncementForm((v) => ({ ...v, description: e.target.value }))}
-                      required
-                    />
-                  </label>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <label className="grid gap-2 text-xs font-semibold text-stone-700">
-                      Status
-                      <select
-                        className="input text-xs"
-                        value={newAnnouncementForm.status}
-                        onChange={(e) => setNewAnnouncementForm((v) => ({ ...v, status: e.target.value as any }))}
-                      >
-                        <option value="published">Published</option>
-                        <option value="scheduled">Scheduled</option>
-                        <option value="draft">Draft</option>
-                        <option value="archived">Archived</option>
-                      </select>
-                    </label>
-
-                    <label className="grid gap-2 text-xs font-semibold text-stone-700">
-                      Priority Score
-                      <input
-                        className="input text-xs"
-                        type="number"
-                        value={newAnnouncementForm.priority}
-                        onChange={(e) => setNewAnnouncementForm((v) => ({ ...v, priority: Number(e.target.value) }))}
-                      />
-                    </label>
+              <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+                {/* 1. Top Marquee Ticker Manager */}
+                <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-card space-y-5 sm:p-6">
+                  <div className="flex flex-wrap items-center justify-between gap-4 border-b border-stone-100 pb-4">
+                    <div>
+                      <h3 className="text-xl font-bold text-emerald-deep flex items-center gap-2">
+                        <Bell className="h-5 w-5 text-gold" />
+                        Top Scrolling Marquee Bar
+                      </h3>
+                      <p className="text-xs text-stone-600 mt-1">
+                        <strong>Where shown:</strong> Displayed continuously scrolling at the very top header banner of the website homepage.
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 border border-emerald-200">
+                      {marqueeList.filter((m) => m.isActive).length} Active Tickers
+                    </span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <label className="grid gap-2 text-xs font-semibold text-stone-700">
-                      Publish Date
+                  {/* Marquee Form */}
+                  <form onSubmit={(e) => { e.preventDefault(); handleCreateMarquee(); }} className="grid gap-4 md:grid-cols-12 items-end bg-stone-50/80 p-4 rounded-xl border border-stone-200">
+                    <div className="md:col-span-6">
+                      <label className="block text-xs font-semibold text-stone-700 mb-1">
+                        Ticker Message Text *
+                      </label>
                       <input
-                        className="input text-xs"
-                        type="date"
-                        value={newAnnouncementForm.publishDate}
-                        onChange={(e) => setNewAnnouncementForm((v) => ({ ...v, publishDate: e.target.value }))}
+                        className="input text-xs w-full bg-white"
+                        placeholder="Registration for Umrah 2026 is now open."
+                        value={newMarquee.content}
+                        onChange={(e) => setNewMarquee((v) => ({ ...v, content: e.target.value }))}
+                        required
                       />
-                    </label>
-                    <label className="grid gap-2 text-xs font-semibold text-stone-700">
-                      Expiry Date
+                    </div>
+
+                    <div className="md:col-span-3">
+                      <label className="block text-xs font-semibold text-stone-700 mb-1">
+                        Badge Tag (Optional)
+                      </label>
                       <input
-                        className="input text-xs"
-                        type="date"
-                        value={newAnnouncementForm.expiryDate}
-                        onChange={(e) => setNewAnnouncementForm((v) => ({ ...v, expiryDate: e.target.value }))}
+                        className="input text-xs w-full bg-white"
+                        placeholder="NOTICE"
+                        value={newMarquee.statusBadge || ""}
+                        onChange={(e) => setNewMarquee((v) => ({ ...v, statusBadge: e.target.value }))}
                       />
-                    </label>
-                  </div>
+                    </div>
 
-                  <label className="grid gap-2 text-xs font-semibold text-stone-700">
-                    Display Locations (comma separated)
-                    <input
-                      className="input text-xs"
-                      placeholder="homepage,popup,marquee"
-                      value={newAnnouncementForm.locations}
-                      onChange={(e) => setNewAnnouncementForm((v) => ({ ...v, locations: e.target.value }))}
-                    />
-                  </label>
+                    <div className="md:col-span-3">
+                      <label className="block text-xs font-semibold text-stone-700 mb-1">
+                        Target Link URL (Optional)
+                      </label>
+                      <input
+                        className="input text-xs w-full bg-white"
+                        placeholder="/draw"
+                        value={newMarquee.linkUrl || ""}
+                        onChange={(e) => setNewMarquee((v) => ({ ...v, linkUrl: e.target.value }))}
+                      />
+                    </div>
 
-                  <label className="grid gap-2 text-xs font-semibold text-stone-700">
-                    Badge Text
-                    <input
-                      className="input text-xs"
-                      placeholder="e.g. Official Update / Urgent / Alert"
-                      value={newAnnouncementForm.badge}
-                      onChange={(e) => setNewAnnouncementForm((v) => ({ ...v, badge: e.target.value }))}
-                    />
-                  </label>
+                    <div className="md:col-span-12 flex justify-end">
+                      <button className="btn-primary text-xs px-4 py-2" disabled={saving}>
+                        <Plus className="h-3.5 w-3.5" />
+                        Add Ticker
+                      </button>
+                    </div>
+                  </form>
 
-                  <button className="btn-primary w-full justify-center" disabled={saving}>
-                    <Plus className="h-4 w-4" />
-                    Publish Announcement
-                  </button>
-                </form>
-
-                {/* Announcement List */}
-                <TableShell title="System Announcements" action={<span className="text-xs text-stone-500">{announcementsList.length} items</span>}>
-                  <div className="space-y-3 p-4">
-                    {announcementsList.length === 0 ? (
-                      <p className="text-sm text-stone-500">No announcements published.</p>
+                  {/* Saved Marquee Tickers */}
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-stone-400">Current Ticker Messages</h4>
+                    {marqueeList.length === 0 ? (
+                      <div className="p-4 text-center rounded-lg border border-dashed border-stone-200 text-stone-400 text-xs">
+                        No marquee ticker messages created yet.
+                      </div>
                     ) : (
-                      announcementsList.map((item) => (
-                        <div key={item.id} className="p-4 rounded-xl border border-stone-200 bg-white space-y-2">
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-2">
-                              {item.badge && <Badge value={item.badge} />}
-                              <Badge value={item.status} />
-                              <span className="text-xs text-stone-400 font-mono">Priority: {item.priority}</span>
+                      <div className="divide-y divide-stone-100 rounded-lg border border-stone-200 bg-white">
+                        {marqueeList.map((item, idx) => (
+                          <div key={item.id || `marquee-${idx}`} className="flex flex-wrap items-center justify-between p-3.5 gap-3 hover:bg-stone-50/50">
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                              <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${item.isActive ? "bg-emerald-500 animate-pulse" : "bg-stone-300"}`} />
+                              {item.statusBadge && (
+                                <span className="rounded bg-gold/20 text-emerald-800 text-[10px] font-bold px-2 py-0.5 border border-gold/30 shrink-0">
+                                  {item.statusBadge}
+                                </span>
+                              )}
+                              <span className="text-xs font-medium text-stone-800 truncate">{item.content}</span>
+                              {item.linkUrl && (
+                                <span className="text-[11px] text-stone-400 truncate hidden sm:inline">(Link: {item.linkUrl})</span>
+                              )}
                             </div>
-                            <button
-                              type="button"
-                              className="btn-secondary h-8 px-2.5 text-xs text-red-600"
-                              onClick={() => handleDeleteAnnouncement(item.id)}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                              Delete
-                            </button>
-                          </div>
 
-                          <h4 className="text-base font-bold text-emerald-deep">{item.title}</h4>
-                          <p className="text-sm text-stone-600">{item.description}</p>
-                          <div className="flex flex-wrap items-center gap-4 text-xs text-stone-400">
-                            <span>Locations: <strong>{item.locations}</strong></span>
-                            <span>Created: {formatDate(item.createdAt)}</span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                className={`btn-secondary text-[11px] px-2.5 py-1 ${item.isActive ? "text-amber-700 bg-amber-50 hover:bg-amber-100" : "text-emerald-700 bg-emerald-50 hover:bg-emerald-100"}`}
+                                onClick={() => handleToggleMarquee(item.id, item.isActive)}
+                              >
+                                {item.isActive ? "Disable" : "Enable"}
+                              </button>
+                              <button
+                                type="button"
+                                className="btn-secondary text-[11px] px-2.5 py-1 text-red-600 hover:bg-red-50"
+                                onClick={() => handleDeleteMarquee(item.id)}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      ))
+                        ))}
+                      </div>
                     )}
                   </div>
-                </TableShell>
+                </div>
+
+                {/* 2. Detailed System Announcements */}
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-stone-200 bg-white p-4">
+                    <h3 className="text-base font-bold text-emerald-deep">Detailed Website Announcements</h3>
+                    <p className="text-xs text-stone-600 mt-1">
+                      <strong>Where shown:</strong> Displayed in full card format under the Announcements section on the homepage and in popup alerts.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-6 xl:grid-cols-[380px_1fr]">
+                    {/* Announcement Creator Form */}
+                    <form onSubmit={(e) => { e.preventDefault(); handleCreateAnnouncement(); }} className="rounded-xl border border-stone-200 bg-white p-5 shadow-card space-y-4 sm:p-6">
+                      <h4 className="text-lg font-bold text-emerald-deep">New Announcement</h4>
+
+                      <label className="grid gap-2 text-xs font-semibold text-stone-700">
+                        Title *
+                        <input
+                          className="input text-sm"
+                          placeholder="Announcement title"
+                          value={newAnnouncementForm.title}
+                          onChange={(e) => setNewAnnouncementForm((v) => ({ ...v, title: e.target.value }))}
+                          required
+                        />
+                      </label>
+
+                      <label className="grid gap-2 text-xs font-semibold text-stone-700">
+                        Description *
+                        <textarea
+                          className="input min-h-24 text-sm"
+                          placeholder="Announcement details..."
+                          value={newAnnouncementForm.description}
+                          onChange={(e) => setNewAnnouncementForm((v) => ({ ...v, description: e.target.value }))}
+                          required
+                        />
+                      </label>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <label className="grid gap-2 text-xs font-semibold text-stone-700">
+                          Status
+                          <select
+                            className="input text-xs"
+                            value={newAnnouncementForm.status}
+                            onChange={(e) => setNewAnnouncementForm((v) => ({ ...v, status: e.target.value as any }))}
+                          >
+                            <option value="published">Published</option>
+                            <option value="scheduled">Scheduled</option>
+                            <option value="draft">Draft</option>
+                            <option value="archived">Archived</option>
+                          </select>
+                        </label>
+
+                        <label className="grid gap-2 text-xs font-semibold text-stone-700">
+                          Priority Score
+                          <input
+                            className="input text-xs"
+                            type="number"
+                            value={newAnnouncementForm.priority}
+                            onChange={(e) => setNewAnnouncementForm((v) => ({ ...v, priority: Number(e.target.value) }))}
+                          />
+                        </label>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <label className="grid gap-2 text-xs font-semibold text-stone-700">
+                          Publish Date
+                          <input
+                            className="input text-xs"
+                            type="date"
+                            value={newAnnouncementForm.publishDate}
+                            onChange={(e) => setNewAnnouncementForm((v) => ({ ...v, publishDate: e.target.value }))}
+                          />
+                        </label>
+                        <label className="grid gap-2 text-xs font-semibold text-stone-700">
+                          Expiry Date
+                          <input
+                            className="input text-xs"
+                            type="date"
+                            value={newAnnouncementForm.expiryDate}
+                            onChange={(e) => setNewAnnouncementForm((v) => ({ ...v, expiryDate: e.target.value }))}
+                          />
+                        </label>
+                      </div>
+
+                      <label className="grid gap-2 text-xs font-semibold text-stone-700">
+                        Display Location
+                        <input
+                          className="input text-xs"
+                          placeholder="homepage,popup"
+                          value={newAnnouncementForm.locations}
+                          onChange={(e) => setNewAnnouncementForm((v) => ({ ...v, locations: e.target.value }))}
+                        />
+                      </label>
+
+                      <label className="grid gap-2 text-xs font-semibold text-stone-700">
+                        Badge Label
+                        <input
+                          className="input text-xs"
+                          placeholder="Official Notice"
+                          value={newAnnouncementForm.badge}
+                          onChange={(e) => setNewAnnouncementForm((v) => ({ ...v, badge: e.target.value }))}
+                        />
+                      </label>
+
+                      <button className="btn-primary w-full justify-center" disabled={saving}>
+                        <Plus className="h-4 w-4" />
+                        Publish Announcement
+                      </button>
+                    </form>
+
+                    {/* Announcement List */}
+                    <TableShell title="System Announcements" action={<span className="text-xs text-stone-500">{announcementsList.length} items</span>}>
+                      <div className="space-y-3 p-4">
+                        {announcementsList.length === 0 ? (
+                          <p className="text-sm text-stone-500">No announcements published.</p>
+                        ) : (
+                          announcementsList.map((item) => (
+                            <div key={item.id} className="p-4 rounded-xl border border-stone-200 bg-white space-y-2">
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-2">
+                                  {item.badge && <Badge value={item.badge} />}
+                                  <Badge value={item.status} />
+                                  <span className="text-xs text-stone-400 font-mono">Priority: {item.priority}</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  className="btn-secondary h-8 px-2.5 text-xs text-red-600"
+                                  onClick={() => handleDeleteAnnouncement(item.id)}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                  Delete
+                                </button>
+                              </div>
+
+                              <h4 className="text-base font-bold text-emerald-deep">{item.title}</h4>
+                              <p className="text-sm text-stone-600">{item.description}</p>
+                              <div className="flex flex-wrap items-center gap-4 text-xs text-stone-400">
+                                <span>Locations: <strong>{item.locations}</strong></span>
+                                <span>Created: {formatDate(item.createdAt)}</span>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </TableShell>
+                  </div>
+                </div>
               </motion.section>
             )}
 
@@ -2466,9 +2607,19 @@ export default function AdminDashboard() {
                         onChange={(e) => handleUpdateGalleryCMSItem(item.id, { caption: e.target.value })}
                       />
 
-                      <div className="flex items-center justify-between text-xs">
-                        <Badge value={item.category} />
+                      <div className="flex items-center justify-between gap-2 text-xs">
+                        <select
+                          className="input py-1 px-2 text-xs font-semibold text-emerald-deep"
+                          value={item.category || "General"}
+                          onChange={(e) => handleUpdateGalleryCMSItem(item.id, { category: e.target.value })}
+                        >
+                          <option value="General">General</option>
+                          <option value="Events">Events</option>
+                          <option value="Charity">Charity</option>
+                          <option value="Umrah">Umrah</option>
+                        </select>
                         <button
+                          type="button"
                           className={`btn-secondary h-7 px-2 text-xs ${item.isVisible ? "text-emerald-700" : "text-stone-400"}`}
                           onClick={() => handleUpdateGalleryCMSItem(item.id, { isVisible: !item.isVisible })}
                         >

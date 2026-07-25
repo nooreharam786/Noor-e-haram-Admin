@@ -53,27 +53,27 @@ export function generatePaymentReceiptHtml(data: PaymentReceiptData, orgSettings
   const amountStr = typeof data.amount === "number" ? `₹ ${data.amount.toLocaleString("en-IN")}` : formatVal(data.amount);
   const statusColor: "success" | "warning" = isPaid ? "success" : "warning";
 
-  // Left Column: Applicant / Donor Information
-  const leftCol = pdfCard("DONOR INFORMATION", ICONS.user, `
-    ${pdfApplicantRow(ICONS.user, "Donor Name", formatVal(data.applicantName))}
+  // Left Column: Applicant Information
+  const leftCol = pdfCard("APPLICANT INFORMATION", ICONS.user, `
+    ${pdfApplicantRow(ICONS.user, "Applicant Name", formatVal(data.applicantName))}
     ${pdfApplicantRow(ICONS.email, "Email Address", formatVal(data.email))}
     ${pdfApplicantRow(ICONS.clipboard, "Registration No", formatVal(data.registrationNo))}
-    ${pdfApplicantRow(ICONS.info, "On Behalf Of", formatVal(data.drawName || "Late Grandparents"))}
+    ${pdfApplicantRow(ICONS.info, "Lucky Draw", formatVal(data.drawName || "Umrah Lucky Draw"))}
   `);
 
-  // Right Column: Donation / Payment Details
-  const rightCol = pdfCard("DONATION DETAILS", ICONS.clipboard, `
+  // Right Column: Payment Details
+  const rightCol = pdfCard("PAYMENT DETAILS", ICONS.clipboard, `
     ${pdfDetailRow("Receipt No", formatVal(data.receiptNumber), false)}
     ${pdfDetailRow("Date", formatVal(data.paymentDate || data.receiptGeneratedDate), true)}
     ${pdfDetailRow("Amount", amountStr, false)}
-    ${pdfDetailRow("Donation Type", formatVal(data.drawName || "General Sadaqah"), true)}
+    ${pdfDetailRow("Payment For", "Umrah Lucky Draw Entry Fee", true)}
     ${pdfDetailRow("Payment Status", isPaid ? "COMPLETED" : "PENDING", false, true, statusColor)}
     ${pdfDetailRow("Transaction ID", formatVal(data.paymentId), true)}
   `);
 
   // Inner Content Layout
   const content = `
-    ${pdfTopHeader("Official Donation Receipt", orgSettings?.logo_url || undefined)}
+    ${pdfTopHeader("Official Payment Receipt", orgSettings?.logo_url || undefined)}
 
     ${pdfStatusBar({
       regNo: formatVal(data.registrationNo || data.receiptNumber),

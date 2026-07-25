@@ -21,12 +21,17 @@ import {
 } from "./pdfComponents";
 
 export async function downloadApplicantTicket(applicant: Applicant) {
-  const dateStr = new Date(applicant.createdAt).toLocaleString("en-IN", {
-    day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true,
-  });
-  const paymentDateStr = applicant.completedAt ? new Date(applicant.completedAt).toLocaleString("en-IN", {
-    day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true,
-  }) : "—";
+  const isValidDate = (d?: string | null) => d && !isNaN(new Date(d).getTime());
+  const dateStr = isValidDate(applicant.createdAt)
+    ? new Date(applicant.createdAt).toLocaleString("en-IN", {
+        day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true,
+      })
+    : "—";
+  const paymentDateStr = isValidDate(applicant.completedAt)
+    ? new Date(applicant.completedAt!).toLocaleString("en-IN", {
+        day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true,
+      })
+    : "—";
   
   const applicantName = formatVal(applicant.user?.name || "Applicant");
   const email = formatVal(applicant.user?.email);

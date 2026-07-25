@@ -38,9 +38,12 @@ export type DonationReceiptData = {
 };
 
 export async function downloadDonationReceipt(donation: DonationReceiptData) {
-  const dateStr = new Date(donation.createdAt).toLocaleString("en-IN", {
-    day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true,
-  });
+  const isValidDate = (d?: string | null) => d && !isNaN(new Date(d).getTime());
+  const dateStr = isValidDate(donation.createdAt)
+    ? new Date(donation.createdAt).toLocaleString("en-IN", {
+        day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true,
+      })
+    : "—";
   
   const donorName = donation.isAnonymous ? "Anonymous Donor" : formatVal(donation.donorName);
   const email = donation.isAnonymous ? "—" : formatVal(donation.email);

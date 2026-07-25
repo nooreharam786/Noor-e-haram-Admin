@@ -38,13 +38,16 @@ function shortText(value: string, maxLength: number) {
   return text.length > maxLength ? `${text.slice(0, maxLength - 1).trimEnd()}…` : text;
 }
 
-function formatDate(value: string, includeTime = false) {
+function formatDate(value?: string | number | Date | null, includeTime = false) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (isNaN(date.getTime())) return "—";
   return new Intl.DateTimeFormat("en-IN", {
     day: "2-digit",
     month: "short",
     year: "numeric",
     ...(includeTime ? { hour: "2-digit", minute: "2-digit", hour12: true } : {})
-  }).format(new Date(value));
+  }).format(date);
 }
 
 function generatedAt() {
