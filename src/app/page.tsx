@@ -753,6 +753,27 @@ export default function AdminDashboard() {
     } finally { setSaving(false); }
   }
 
+  async function handleDeleteDraw(drawId: string, drawName: string) {
+    const confirmName = window.prompt(
+      `CRITICAL ACTION:\nAre you sure you want to delete draw "${drawName}"?\n\n- All applicants in this draw will be permanently deleted.\n- Registration sequence counter will roll back to where it was before creating this draw.\n\nType the exact draw name "${drawName}" below to confirm deletion:`
+    );
+    if (!confirmName || confirmName.trim() !== drawName) {
+      if (confirmName !== null) toast.error("Draw name confirmation mismatch. Deletion cancelled.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await api<{ message: string }>(`/admin/draws/${drawId}`, { method: "DELETE" });
+      toast.success(res.message || `Draw '${drawName}' deleted successfully.`);
+      if (selectedPrintDrawId === drawId) setSelectedPrintDrawId("");
+      await loadDraws();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete draw");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleUpdateDrawStatus(drawId: string, status: "active" | "closed" | "archived") {
     setSaving(true);
     try {
@@ -1979,6 +2000,14 @@ export default function AdminDashboard() {
                                 Archive
                               </button>
                             )}
+                            <button
+                              className="btn-secondary h-8 text-xs px-3 text-red-700 bg-red-50 hover:bg-red-100 border-red-200 font-semibold"
+                              onClick={() => handleDeleteDraw(draw.id, draw.name)}
+                              disabled={saving}
+                              title="Delete draw and roll back registration counter"
+                            >
+                              Delete Draw
+                            </button>
                           </div>
                         </div>
                       ))
