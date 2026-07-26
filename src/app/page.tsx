@@ -908,10 +908,17 @@ export default function AdminDashboard() {
 
       // Always send drawId — backend will reject requests without it
       const res = await api<{ items: Applicant[] }>(`/admin/print/applicants?all=true&drawId=${targetDrawId}`);
-      const applicantsList = res.items;
+      
+      // Strict enforcement: Only include applicants with paymentStatus === "paid"
+      const rawItems = res.items || [];
+      const applicantsList = rawItems.filter((app) => app.paymentStatus === "paid");
 
-      if (!applicantsList || applicantsList.length === 0) {
-        toast.error(`"${selectedDraw.name}" has 0 registered applicants. No chits available to print.`);
+      if (applicantsList.length === 0) {
+        if (rawItems.length > 0) {
+          toast.error(`"${selectedDraw.name}" has ${rawItems.length} applicant(s), but none have verified paid status. Chit printing is strictly restricted to paid applicants only.`);
+        } else {
+          toast.error(`"${selectedDraw.name}" has 0 registered applicants. No chits available to print.`);
+        }
         return;
       }
 
@@ -2173,8 +2180,11 @@ export default function AdminDashboard() {
                   {/* Print Lucky Draw Chits for Physical Box */}
                   <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-card space-y-4 sm:p-6">
                     <div>
-                      <h3 className="text-lg font-semibold text-emerald-deep">Print Physical Lucky Draw Chits</h3>
-                      <p className="mt-1 text-xs text-stone-500">Generate A4-optimized chits with dashed cut marks, QR codes, and registration numbers for physical draw box selection.</p>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-lg font-semibold text-emerald-deep">Print Physical Lucky Draw Chits</h3>
+                        <span className="rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2.5 py-0.5 border border-emerald-300">Strictly Paid Only</span>
+                      </div>
+                      <p className="mt-1 text-xs text-stone-500">Generate A4-optimized chits for physical draw box selection. Strictly restricted to verified paid applicants only (pending/unpaid entries excluded automatically).</p>
                     </div>
 
                     <div className="space-y-1.5">
