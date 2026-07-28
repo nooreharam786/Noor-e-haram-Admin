@@ -16,6 +16,7 @@ tsconfig.tsbuildinfo
 .env.production.local
 .env*.local
 .env.example
+env1
 
 # Vercel
 .vercel/

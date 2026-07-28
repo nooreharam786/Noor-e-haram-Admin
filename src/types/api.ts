@@ -14,6 +14,7 @@ export type User = {
 export type Applicant = {
   id: string;
   registrationNo: string;
+  applicantName?: string;
   coverId?: string; // Alias/fallback to support existing UI usages
   phone: string;
   stateCode: string;

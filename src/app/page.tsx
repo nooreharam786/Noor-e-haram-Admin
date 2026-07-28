@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
@@ -60,6 +60,7 @@ type DrawItem = {
   drawIndex: number;
   status: "draft" | "active" | "paused" | "closed" | "archived";
   appControlStatus: "open" | "paused" | "closed";
+  maxApplicationsPerUser: number;
   bannerMessage?: string | null;
   startDate?: string | null;
   endDate?: string | null;
@@ -456,6 +457,7 @@ export default function AdminDashboard() {
 
   const [contactMessages, setContactMessages] = useState<ContactMessageItem[]>([]);
   const [cmsStats, setCmsStats] = useState<any>(null);
+  const dashboardLoadedRef = useRef(false);
 
   async function loadDrawHistory() {
     const history = await api<DrawResult[]>("/admin/draw/history");
@@ -802,6 +804,30 @@ export default function AdminDashboard() {
     } finally { setSaving(false); }
   }
 
+  async function handleUpdateApplicationLimit(draw: DrawItem) {
+    const entered = window.prompt(
+      "Maximum applications per account for this draw. Enter 1 for one person, a higher number for family registrations, or 0 for unlimited.",
+      String(draw.maxApplicationsPerUser ?? 1)
+    );
+    if (entered === null) return;
+    const limit = Number(entered);
+    if (!Number.isInteger(limit) || limit < 0 || limit > 100) {
+      toast.error("Enter a whole number from 0 to 100.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await api(`/admin/draws/${draw.id}/application-limit`, {
+        method: "PATCH",
+        body: JSON.stringify({ maxApplicationsPerUser: limit })
+      });
+      toast.success(limit === 0 ? "Unlimited family registrations enabled." : `Set limit to ${limit} application${limit === 1 ? "" : "s"} per account.`);
+      await loadDraws();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update application limit");
+    } finally { setSaving(false); }
+  }
+
   async function handleUpdateApplicantStatus(applicationId: string, status: ApplicationStatus) {
     try {
       await api("/admin/applicants/status", {
@@ -945,7 +971,7 @@ export default function AdminDashboard() {
               <div class="center-info">
                 <div>
                   <div class="reg-no">${regNo}</div>
-                  <div class="name">${app.user?.name || "Applicant"}</div>
+                  <div class="name">${app.applicantName || app.user?.name || "Applicant"}</div>
                   <div class="serial">SERIAL: #${serialNo}</div>
                 </div>
                 <div class="details-section">
@@ -1248,7 +1274,10 @@ export default function AdminDashboard() {
         toast.error(error instanceof Error ? error.message : "Unable to load dashboard");
         if (error instanceof Error && error.message.toLowerCase().includes("token")) router.replace("/login");
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        dashboardLoadedRef.current = true;
+        setLoading(false);
+      });
   }, [router]);
 
   // Tab-based Lazy Data Fetching (Only load data when user opens specific tab)
@@ -1256,6 +1285,9 @@ export default function AdminDashboard() {
     if (!getToken()) return;
 
     if (activeTab === "Dashboard") {
+      // Initial page load already fetches this data. Avoid issuing the same
+      // dashboard, draw-history, and CMS-stat requests twice at startup.
+      if (!dashboardLoadedRef.current) return;
       loadDashboard().catch((error) => toast.error(error.message));
     } else if (activeTab === "Users") {
       loadUsers().catch((error) => toast.error(error.message));
@@ -1482,7 +1514,7 @@ export default function AdminDashboard() {
   function exportApplicants() {
     if (!applicants?.items.length) { toast.info("No applicants to export"); return; }
     const rows = applicants.items.map((item) => ({
-      Name: item.user.name, Email: item.user.email, Phone: item.phone,
+      Name: item.applicantName || item.user.name, Email: item.user.email, Phone: item.phone,
       State: item.stateName, City: item.city, Fee: item.entryFee,
       Status: item.status, Payment: item.paymentStatus, Applied: item.createdAt
     }));
@@ -1798,7 +1830,7 @@ export default function AdminDashboard() {
                         <div className="mb-4 flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <p className="font-mono text-sm font-semibold text-gold">{item.registrationNo}</p>
-                            <h4 className="mt-1 truncate font-semibold text-emerald-deep">{item.user.name}</h4>
+                            <h4 className="mt-1 truncate font-semibold text-emerald-deep">{item.applicantName || item.user.name}</h4>
                             <p className="mt-1 break-all text-xs text-stone-500">{item.user.email}</p>
                           </div>
                           <div className="grid gap-1 text-right">
@@ -1865,7 +1897,7 @@ export default function AdminDashboard() {
                           </span>
                         </td>
                         <td className="px-4 py-4 font-mono text-sm font-semibold text-emerald-deep">{item.registrationNo}</td>
-                        <td className="px-4 py-4 font-semibold text-stone-800">{item.user.name}</td>
+                        <td className="px-4 py-4 font-semibold text-stone-800">{item.applicantName || item.user.name}</td>
                         <td className="px-4 py-4 text-stone-600">{item.user.email}</td>
                         <td className="px-4 py-4 text-stone-600">{item.phone}</td>
                         <td className="px-4 py-4 text-stone-600">{item.stateName}</td>
@@ -1961,6 +1993,7 @@ export default function AdminDashboard() {
                             <div>Paid Apps: <strong>{draw.paidApplications}</strong></div>
                             <div>Verified: <strong>{draw.verifiedApplications}</strong></div>
                             <div>Selected Persons: <strong className="text-gold font-bold">{draw.winnerApplications}</strong></div>
+                            <div>Account Limit: <strong>{draw.maxApplicationsPerUser === 0 ? "Unlimited" : draw.maxApplicationsPerUser}</strong></div>
                           </div>
 
                           <div className="flex flex-wrap gap-2 pt-2">
@@ -1982,6 +2015,14 @@ export default function AdminDashboard() {
                                 Close Draw
                               </button>
                             )}
+                            <button
+                              className="btn-secondary h-8 text-xs px-3 text-indigo-700"
+                              onClick={() => handleUpdateApplicationLimit(draw)}
+                              disabled={saving}
+                              title="Configure family applications for this draw"
+                            >
+                              Family Limit
+                            </button>
                             <button
                               className="btn-secondary h-8 text-xs px-3 text-red-600 hover:bg-red-50"
                               onClick={() => handleBulkMarkNotSelected(draw.id)}
@@ -3174,7 +3215,7 @@ export default function AdminDashboard() {
                     {!payments ? <SkeletonRows cols={8} /> : payments.items.map((item) => (
                       <tr key={item.id} className="border-t border-stone-100">
                         <td className="px-4 py-4">
-                          <p className="font-semibold text-stone-800">{item.user.name}</p>
+                          <p className="font-semibold text-stone-800">{item.applicantName || item.user.name}</p>
                           <p className="text-xs text-stone-400">{item.user.email}</p>
                         </td>
                         <td className="px-4 py-4 text-stone-600">{item.phone}</td>
